@@ -34,7 +34,8 @@ export async function POST(request: Request) {
     if (data === "wait")
       throw new AppError(
         429,
-        "Patiente vingt secondes entre deux demandes au tuteur.",
+        "Patiente vingt secondes entre deux demandes à l’IA.",
+        20,
       );
     if (data !== "ok")
       throw new AppError(

@@ -14,10 +14,16 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import type { Course, Lesson, Question, SessionDraft } from "@/lib/types";
+import type {
+  AiGrade,
+  Course,
+  Lesson,
+  Question,
+  SessionDraft,
+} from "@/lib/types";
 import { stages } from "@/lib/learning";
 import { gradeCriteria, gradePrompt, type PromptGrade } from "@/lib/grading";
-import { authHeaders } from "@/lib/client";
+import { callAi } from "@/lib/ai-client";
 import { AnswerFeedback } from "./writing-feedback";
 import { Pill } from "./ui";
 const labels: Record<string, string> = {
@@ -218,20 +224,11 @@ export function LearningSession({
         ? missionPrompts.map((_, i) => d.writing[i] ?? "")
         : [d.reflection];
     if (!aiReady) return;
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setAiNotice("Hors connexion : la correction hors ligne fait foi.");
-      return;
-    }
     setAiPending(key);
     setAiNotice("");
     try {
-      const r = await fetch("/api/learn", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
+      const b = await callAi<{ items: AiGrade[] }>(
+        {
           action: "grade",
           title: key === "mission" ? lesson.mission.title : lesson.title,
           context: (key === "mission"
@@ -242,11 +239,13 @@ export function LearningSession({
             key === "mission"
               ? missionItems(answers)
               : reflectionItems(answers[0]),
-          requestId: crypto.randomUUID(),
-        }),
-      });
-      const b = await r.json();
-      if (!r.ok) throw new Error(b.error);
+        },
+        () =>
+          setAiNotice(
+            "Une demande vient d’être envoyée : la correction IA part dans 20 secondes.",
+          ),
+      );
+      setAiNotice("");
       const latest = draftRef.current;
       const next = {
         ...latest,
@@ -262,7 +261,11 @@ export function LearningSession({
       );
     } catch (e) {
       setAiNotice(
-        `${e instanceof Error && e.message ? e.message : "Correction IA indisponible."} La correction hors ligne fait foi.`,
+        `${e instanceof Error && e.message ? e.message : "Correction IA indisponible."} ${
+          (key === "mission" ? missionChecks : lesson.keyIdeas)
+            ? "La correction hors ligne fait foi."
+            : "Compare ta réponse à la piste proposée."
+        }`,
       );
     } finally {
       setAiPending(null);
@@ -503,6 +506,7 @@ export function LearningSession({
                 </>
               ) : (
                 <CorrectionSummary
+                  hasGrid={!!missionChecks}
                   solid={solidCount}
                   total={missionPrompts.length}
                   aiReady={aiReady}
@@ -611,6 +615,7 @@ export function LearningSession({
                       pending={aiPending === "reflection"}
                     />
                     <CorrectionSummary
+                      hasGrid={!!lesson.keyIdeas}
                       aiReady={aiReady}
                       pending={aiPending === "reflection"}
                       stale={staleAi("reflection")}
@@ -715,6 +720,7 @@ export function LearningSession({
 }
 
 function CorrectionSummary({
+  hasGrid,
   solid,
   total,
   aiReady,
@@ -723,6 +729,7 @@ function CorrectionSummary({
   notice,
   retry,
 }: {
+  hasGrid: boolean;
   solid?: number;
   total?: number;
   aiReady: boolean;
@@ -733,19 +740,23 @@ function CorrectionSummary({
 }) {
   return (
     <div className="correction-summary" role="status">
-      {total !== undefined && (
+      {total !== undefined && (hasGrid || !stale) && (
         <strong>
           {solid}/{total} · {solid! > 1 ? "réponses solides" : "réponse solide"}
         </strong>
       )}
       <p>
         {pending
-          ? "L’IA vérifie tes réponses. Le verdict hors ligne s’affiche en attendant."
-          : !aiReady
-            ? "Correction hors ligne : elle repère les idées clés attendues, sans juger le style. La correction par l’IA s’activera dès que DeepSeek sera connecté."
-            : stale
-              ? "Tu as modifié ta réponse : le verdict hors ligne est affiché. Redemande l’avis de l’IA pour un verdict définitif."
-              : "Verdict de l’IA : il fait foi. Tu peux encore améliorer ta réponse."}
+          ? hasGrid
+            ? "L’IA vérifie tes réponses. Le verdict hors ligne s’affiche en attendant."
+            : "L’IA vérifie tes réponses (jusqu’à une minute)."
+          : !hasGrid && stale
+            ? "Pas de correction hors ligne pour ce sujet : compare ta réponse à la piste, ou demande l’avis de l’IA."
+            : !aiReady
+              ? "Correction hors ligne : elle repère les idées clés attendues, sans juger le style. La correction par l’IA s’activera dès que DeepSeek sera connecté."
+              : stale
+                ? "Tu as modifié ta réponse : le verdict hors ligne est affiché. Redemande l’avis de l’IA pour un verdict définitif."
+                : "Verdict de l’IA : il fait foi. Tu peux encore améliorer ta réponse."}
       </p>
       {notice && <p className="ai-notice">{notice}</p>}
       {aiReady && stale && !pending && (

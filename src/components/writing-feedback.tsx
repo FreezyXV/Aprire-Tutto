@@ -82,7 +82,19 @@ export function AnswerFeedback({
   pending: boolean;
 }) {
   const verdict = ai?.verdict ?? offline?.verdict;
-  if (!verdict) return null;
+  if (!verdict)
+    // Generated topics have no offline grid: show the hint while the AI works
+    // or when it is unavailable.
+    return model || pending ? (
+      <div className="writing-feedback" role="status">
+        {pending && (
+          <p className="grade-pending">
+            <LoaderCircle size={14} className="spin" /> L’IA vérifie ta réponse…
+          </p>
+        )}
+        <ModelAnswer label="Piste de réponse" text={model} />
+      </div>
+    ) : null;
   return (
     <div className={`writing-feedback verdict-box-${verdict}`} role="status">
       <div className="grade-head">
