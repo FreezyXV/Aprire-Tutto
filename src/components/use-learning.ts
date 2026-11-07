@@ -229,8 +229,15 @@ export function useLearning() {
       if (canSync.current && current.current.updatedAt === lastSaved.current)
         void loadCloud();
     };
+    const onOnline = () => {
+      void loadCloud();
+    };
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+    };
   }, [loadCloud]);
   return {
     state,

@@ -44,6 +44,7 @@ import {
 import { authHeaders, getSupabase } from "@/lib/client";
 import type { Course, Lesson, Minutes, SessionDraft, View } from "@/lib/types";
 import { Brand, CourseArt, Empty, Modal, Pill, Ring } from "./ui";
+import { SessionOutline } from "./session-outline";
 import { Choice, LearningSession } from "./session";
 import { useLearning } from "./use-learning";
 const nav = [
@@ -102,6 +103,9 @@ export default function LearningApp() {
   const activeReview = state.reviews.find((r) => r.id === reviewId);
   const minutes = state.minutesDate === dayKey() ? state.minutes : 20;
   const totalDone = new Set(state.completions.map((c) => c.lessonId)).size;
+  const explorationDays = new Set(
+    state.completions.map((c) => dayKey(new Date(c.at))),
+  ).size;
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 4500);
@@ -271,7 +275,7 @@ export default function LearningApp() {
             >
               <Brand />
             </button>
-            <div className="workspace-label">TON ESPACE D’APPRENTISSAGE</div>
+            <div className="workspace-label">Mon carnet</div>
             <nav aria-label="Navigation principale">
               {nav.map(({ id, label, icon: Icon }) => (
                 <button
@@ -290,13 +294,12 @@ export default function LearningApp() {
             </nav>
             <div className="sidebar-bottom">
               <div className="sidebar-note">
-                <span className="note-asterisk">✳</span>
+                <BookOpen size={20} />
                 <p>
-                  La curiosité ouvre
+                  Comprendre.
                   <br />
-                  toutes les portes.
+                  Pratiquer. Retenir.
                 </p>
-                <span>Une petite étape à la fois.</span>
               </div>
               <button
                 className={`nav-item ${view === "settings" ? "active" : ""}`}
@@ -385,12 +388,9 @@ export default function LearningApp() {
                         })}
                       </div>
                       <h1>
-                        Ouvre un nouvel <em>horizon.</em>
+                        Une page <em>à la fois.</em>
                       </h1>
-                      <p>
-                        Un peu de temps pour toi. Beaucoup de choses à
-                        découvrir.
-                      </p>
+                      <p>Un moment pour apprendre, quelque chose à retenir.</p>
                     </div>
                     <button
                       className="button secondary new-subject-top"
@@ -484,7 +484,9 @@ export default function LearningApp() {
                           performance
                         </div>
                       </div>
-                      <CourseArt />
+                      <SessionOutline
+                        minutes={state.session?.minutes ?? minutes}
+                      />
                     </section>
                     <section className="rhythm-card">
                       <div className="card-topline">
@@ -533,17 +535,9 @@ export default function LearningApp() {
                         })}
                       </div>
                       <div className="rhythm-footer">
-                        <strong>
-                          {
-                            new Set(
-                              state.completions.map((c) =>
-                                dayKey(new Date(c.at)),
-                              ),
-                            ).size
-                          }
-                        </strong>
+                        <strong>{explorationDays}</strong>
                         <span>
-                          jours d’exploration
+                          {explorationDays > 1 ? "jours" : "jour"} d’exploration
                           <br />
                           <small>Chaque retour compte aussi.</small>
                         </span>
@@ -552,16 +546,14 @@ export default function LearningApp() {
                   </div>
                   <div className="section-heading">
                     <div>
-                      <span className="eyebrow">
-                        Tes terrains d’exploration
-                      </span>
-                      <h2>De la curiosité aux compétences.</h2>
+                      <span className="eyebrow">À explorer</span>
+                      <h2>Tes parcours.</h2>
                     </div>
                     <button
                       className="text-button"
                       onClick={() => navigate("subjects")}
                     >
-                      Tous mes sujets <ArrowUpRight size={17} />
+                      Voir mes sujets <ArrowUpRight size={17} />
                     </button>
                   </div>
                   <div className="subjects-grid">
@@ -1465,19 +1457,8 @@ function CourseCard({
 }) {
   return (
     <button className="subject-card" onClick={open}>
-      <div className={`subject-art ${course.color}`}>
-        <div className="subject-symbol">
-          <Compass size={48} strokeWidth={1} />
-        </div>
-        <span className="subject-art-label">
-          Comprendre
-          <br />
-          pour agir.
-        </span>
-        <span className="subject-art-arrow">
-          <ArrowUpRight size={22} />
-        </span>
-        <span className="subject-art-orbit" />
+      <div className={`subject-art ${course.color}`} aria-hidden="true">
+        <BookOpen size={25} strokeWidth={1.4} />
       </div>
       <div className="subject-card-body">
         <span className="eyebrow">

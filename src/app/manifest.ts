@@ -6,8 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Comprendre. Pratiquer. Retenir.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f1e6d2",
-    theme_color: "#f1e6d2",
+    background_color: "#f5efe3",
+    theme_color: "#f5efe3",
     lang: "fr",
     icons: [
       {
