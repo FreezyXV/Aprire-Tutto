@@ -197,6 +197,15 @@ export type AppState = {
   /** Reading progress: last section reached, and when the end was reached. */
   reading?: ReadingMark[];
   practice?: PracticeResult[];
+  /** Subjects requested by the learner, to be authored in the app. */
+  wishes?: TopicWish[];
+};
+export type TopicWish = {
+  id: string;
+  topic: string;
+  goal: string;
+  level: string;
+  at: string;
 };
 export type ReadingMark = {
   courseId: string;

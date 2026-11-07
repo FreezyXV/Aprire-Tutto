@@ -55,7 +55,7 @@ import {
   practicedLevels,
   type Level,
 } from "./practice-view";
-import type { Chapter, PracticeResult, ReadingMark } from "@/lib/types";
+import type { PracticeResult, ReadingMark, TopicWish } from "@/lib/types";
 const nav = [
   { id: "today", label: "Aujourd’hui", icon: Sun },
   { id: "subjects", label: "Cours", icon: BookOpen },
@@ -315,34 +315,6 @@ export default function LearningApp() {
       ],
       updatedAt: new Date().toISOString(),
     }));
-  const generateChapter = async (lesson: Lesson) => {
-    const b = await callAi<{ chapter: Chapter }>({
-      action: "chapter",
-      topic: course.title.slice(0, 140),
-      lesson: {
-        title: lesson.title,
-        subtitle: lesson.subtitle,
-        skill: lesson.skill,
-        paragraphs: lesson.paragraphs,
-        takeaway: lesson.takeaway,
-        example: lesson.example,
-      },
-    });
-    update((s) => ({
-      ...s,
-      courses: s.courses.map((c) =>
-        c.id !== course.id
-          ? c
-          : {
-              ...c,
-              lessons: c.lessons.map((l) =>
-                l.id === lesson.id ? { ...l, chapter: b.chapter } : l,
-              ),
-            },
-      ),
-      updatedAt: new Date().toISOString(),
-    }));
-  };
   const chapterLesson = course.lessons.find((l) => l.id === chapterId);
   const practiceLesson = practiceOpen
     ? course.lessons.find((l) => l.id === practiceOpen.lessonId)
@@ -747,14 +719,14 @@ export default function LearningApp() {
                         Mes <em>sujets.</em>
                       </>
                     }
-                    description="Des parcours qui partent de ce que tu veux vraiment apprendre."
+                    description="Chaque parcours est rédigé directement dans l’app : cours, schémas, exercices et grilles de correction. L’IA sert uniquement à juger tes réponses rédigées."
                     action={
                       <button
                         className="button primary"
                         onClick={() => setNewTopic("")}
                       >
                         <Plus size={18} />
-                        Nouveau sujet
+                        Demander un sujet
                       </button>
                     }
                   />
@@ -791,6 +763,43 @@ export default function LearningApp() {
                         </Empty>
                       )}
                   </div>
+                  {(state.wishes ?? []).length > 0 && (
+                    <section className="wishes">
+                      <h2>Sujets demandés</h2>
+                      <p className="muted small-text">
+                        En préparation : ils apparaîtront ici dès qu’ils seront
+                        rédigés.
+                      </p>
+                      <ul>
+                        {(state.wishes ?? []).map((w) => (
+                          <li key={w.id}>
+                            <div>
+                              <strong>{w.topic}</strong>
+                              <span>
+                                {w.level}
+                                {w.goal ? ` · ${w.goal}` : ""}
+                              </span>
+                            </div>
+                            <button
+                              className="icon-button"
+                              aria-label={`Retirer ${w.topic}`}
+                              onClick={() =>
+                                update((s) => ({
+                                  ...s,
+                                  wishes: (s.wishes ?? []).filter(
+                                    (x) => x.id !== w.id,
+                                  ),
+                                  updatedAt: new Date().toISOString(),
+                                }))
+                              }
+                            >
+                              <X size={16} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
                   <section className="discovery">
                     <span className="eyebrow">SUIVRE UN ÉLAN DE CURIOSITÉ</span>
                     <h2>Qu’aimerais-tu comprendre ?</h2>
@@ -1003,8 +1012,6 @@ export default function LearningApp() {
                       course.lessons[course.lessons.indexOf(chapterLesson) + 1];
                     return n ? () => openChapter(n) : undefined;
                   })()}
-                  aiReady={aiReady}
-                  generate={() => generateChapter(chapterLesson)}
                 />
               )}
               {view === "practice" && (
@@ -1666,11 +1673,15 @@ export default function LearningApp() {
         <NewTopic
           initial={newTopic}
           close={() => setNewTopic(null)}
-          created={(c) => {
-            update((s) => ({ ...s, courses: [...s.courses, c] }));
+          wished={(w) => {
+            update((s) => ({
+              ...s,
+              wishes: [...(s.wishes ?? []), w],
+              updatedAt: new Date().toISOString(),
+            }));
             setNewTopic(null);
-            openCourse(c);
-            setToast("Ton nouveau parcours est prêt.");
+            navigate("subjects");
+            setToast("Sujet noté : il sera rédigé et ajouté à l’app.");
           }}
         />
       )}
@@ -1834,39 +1845,32 @@ function ServiceStatus() {
 function NewTopic({
   initial,
   close,
-  created,
+  wished,
 }: {
   initial: string;
   close: () => void;
-  created: (c: Course) => void;
+  wished: (w: TopicWish) => void;
 }) {
   const [topic, setTopic] = useState(initial),
     [goal, setGoal] = useState(""),
-    [level, setLevel] = useState("Je découvre"),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function submit(e: React.FormEvent) {
+    [level, setLevel] = useState("Je découvre");
+  function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const data = await callAi<{ course: Course }>({
-        action: "course",
-        topic,
-        goal,
-        level,
-      });
-      created(data.course);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Une erreur est survenue.");
-    } finally {
-      setBusy(false);
-    }
+    if (topic.trim().length < 2) return;
+    wished({
+      id: crypto.randomUUID(),
+      topic: topic.trim(),
+      goal: goal.trim(),
+      level,
+      at: new Date().toISOString(),
+    });
   }
   return (
-    <Modal title="Qu’est-ce qui t’intrigue ?" close={busy ? () => {} : close}>
+    <Modal title="Qu’aimerais-tu apprendre ?" close={close}>
       <p className="modal-intro">
-        Une idée, une envie, une compétence. Ton prochain parcours commence ici.
+        Chaque sujet est rédigé directement dans l’app, avec son cours, ses
+        schémas, ses exercices et ses grilles de correction. Note ce qui
+        t’intéresse : il apparaîtra dans Cours dès qu’il sera prêt.
       </p>
       <form onSubmit={submit}>
         <label className="field-label" htmlFor="topic">
@@ -1879,7 +1883,7 @@ function NewTopic({
           maxLength={140}
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="Ex. comprendre les API, parler italien…"
+          placeholder="Ex. la modélisation BPMN, le SQL, l’italien…"
         />
         <label className="field-label" htmlFor="topic-goal">
           Pour pouvoir… <span>facultatif</span>
@@ -1910,40 +1914,10 @@ function NewTopic({
             )}
           </div>
         </fieldset>
-        <div className="generation-note">
-          <Sparkles size={19} />
-          <p>
-            Un parcours progressif, des sources à explorer et des exercices pour
-            passer à la pratique.
-          </p>
-        </div>
-        {error && (
-          <div className="form-error" role="alert">
-            {error}
-          </div>
-        )}
-        <button
-          className="button primary full"
-          disabled={busy || !topic.trim()}
-        >
-          {busy ? (
-            <>
-              <LoaderCircle className="spin" size={18} />
-              Recherche et création en cours…
-            </>
-          ) : (
-            <>
-              Créer mon parcours
-              <ArrowRight size={18} />
-            </>
-          )}
+        <button className="button primary full" disabled={!topic.trim()}>
+          Noter ce sujet
+          <ArrowRight size={18} />
         </button>
-        {busy && (
-          <p className="muted small-text">
-            Environ une à deux minutes. Garde l’app ouverte : l’écran reste
-            allumé pendant la création.
-          </p>
-        )}
       </form>
     </Modal>
   );

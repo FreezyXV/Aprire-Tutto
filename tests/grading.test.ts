@@ -188,27 +188,6 @@ test("Saved progress keeps AI verdicts and rejects unknown ones", async () => {
   assert.equal(stateSchema.safeParse({ ...base, session: bad }).success, false);
 });
 
-test("A paid course is kept even with duplicate IDs, bad enums or one broken lesson", async () => {
-  const { salvageCourse } = await import("../src/lib/deepseek");
-  const raw = structuredClone(baCourse) as unknown as Record<
-    string,
-    unknown
-  > & {
-    lessons: Record<string, unknown>[];
-  };
-  raw.lessons = raw.lessons
-    .slice(0, 4)
-    .map((l) => ({ ...l, id: "sera-remplace" }));
-  raw.color = "turquoise";
-  raw.icon = "rocket";
-  delete raw.lessons[2].check;
-  const course = salvageCourse(raw);
-  assert.ok(course);
-  assert.equal(course.lessons.length, 3);
-  assert.equal(new Set(course.lessons.map((l) => l.id)).size, 3);
-  assert.equal(salvageCourse({ lessons: [{}] }), null);
-});
-
 test("Each AI action uses the measured cheapest reliable settings", async () => {
   const seen: Record<string, { model: string; effort: string; max: number }> =
     {};
