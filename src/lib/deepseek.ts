@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { AppError } from "./server";
-import { courseSchema, learnRequestSchema, sourceSchema } from "./validation";
+import {
+  courseSchema,
+  gradeResultSchema,
+  learnRequestSchema,
+  sourceSchema,
+} from "./validation";
 type LearnRequest = z.infer<typeof learnRequestSchema>;
 const searchResultSchema = sourceSchema.extend({
   summary: z.string().default(""),
@@ -171,6 +176,13 @@ export async function runLearning(
       date: new Date().toISOString().slice(0, 10),
       references: sources,
     });
+  } else if (input.action === "grade") {
+    system += ` Tu corriges des réponses écrites d’un apprenant. Pour chaque item, compare la réponse à la question, aux critères et à la réponse modèle (qui n’est qu’un exemple : une autre formulation juste est valable). Verdict : "solid" si la réponse est juste et couvre les critères, "partial" si elle est juste mais incomplète ou imprécise, "revise" si elle est fausse, hors sujet ou vide. feedback : 2 à 4 phrases en tutoyant, ce qui est juste puis ce qui manque ou est faux, concrètement. improved : la réponse de l’apprenant réécrite correctement en gardant ses idées (vide si la réponse est vide). Réponds uniquement en JSON : {"items":[{"verdict":"solid|partial|revise","feedback":"…","improved":"…"}]}, un item par question, dans l’ordre. Pas de Markdown.`;
+    user = JSON.stringify({
+      exercice: input.title,
+      contexte: input.context,
+      items: input.items,
+    });
   } else {
     system +=
       " Réponds en français en moins de 350 mots, texte simple. Commence par un indice si la personne veut de l’aide. Pour une correction, compare sa production aux critères fournis, cite ce qui est réussi, relève une amélioration précise, puis pose une question de transfert. Ne prétends pas avoir consulté le web. Si la question exige une information actuelle non fournie, indique qu’une vérification de source est nécessaire.";
@@ -194,7 +206,7 @@ export async function runLearning(
       ],
       reasoning_effort: input.action === "course" ? "max" : "high",
       max_tokens: input.action === "course" ? 16000 : 4000,
-      ...(input.action === "course"
+      ...(input.action !== "tutor"
         ? { response_format: { type: "json_object" } }
         : {}),
     },
@@ -203,6 +215,18 @@ export async function runLearning(
   );
   const content = readCompletion(raw);
   if (input.action === "tutor") return { answer: content };
+  if (input.action === "grade") {
+    let graded: unknown;
+    try {
+      graded = JSON.parse(content);
+    } catch {
+      throw new AppError(502, "La correction reçue est mal formée.");
+    }
+    const result = gradeResultSchema.safeParse(graded);
+    if (!result.success || result.data.items.length !== input.items.length)
+      throw new AppError(502, "La correction reçue est incomplète.");
+    return result.data;
+  }
   let object: unknown;
   try {
     object = JSON.parse(content);

@@ -16,6 +16,13 @@ import {
 } from "lucide-react";
 import type { Course, Lesson, Question, SessionDraft } from "@/lib/types";
 import { stages } from "@/lib/learning";
+import { gradeCriteria, gradePrompt } from "@/lib/grading";
+import {
+  AiCorrection,
+  CriteriaList,
+  PromptFeedback,
+  VerdictBadge,
+} from "./writing-feedback";
 import { Pill } from "./ui";
 const labels: Record<string, string> = {
   recall: "Réactiver",
@@ -88,13 +95,15 @@ export function Choice({
       </div>
       {revealed && (
         <div
-          className={`feedback ${selected === question.answer ? "positive" : "neutral"}`}
+          className={`feedback ${selected === question.answer ? "positive" : selected === -1 ? "neutral" : "wrong"}`}
           role="status"
         >
           <strong>
             {selected === question.answer
-              ? "Oui, c’est ça."
-              : "Une nuance à retenir."}
+              ? "Bonne réponse."
+              : selected === -1
+                ? "Voici la réponse."
+                : "Pas tout à fait. Voici pourquoi :"}
           </strong>
           <p>{question.explanation}</p>
         </div>
@@ -140,9 +149,33 @@ export function LearningSession({
   }, [draft.step]);
   const change = (patch: Partial<SessionDraft>) =>
     update({ ...draft, ...patch });
+  const missionPrompts =
+    draft.minutes === 10
+      ? lesson.mission.prompts.slice(0, 1)
+      : lesson.mission.prompts;
+  const missionChecks = lesson.mission.checks;
+  const gradeAll = (writing: string[]) =>
+    missionPrompts.map((_, i) =>
+      missionChecks?.[i]
+        ? gradePrompt(writing[i] ?? "", missionChecks[i])
+        : null,
+    );
+  const solidIndexes = (writing: string[]) =>
+    gradeAll(writing).flatMap((g, i) => (g?.verdict === "solid" ? [i] : []));
+  const gradable =
+    (step === "mission" && !!missionChecks) ||
+    (step === "reflection" && !!lesson.keyIdeas);
+  const toCorrect = (isQuestion || gradable) && !revealed;
   const next = () => {
     if (isQuestion && !revealed) {
       change({ revealed: [...draft.revealed, step] });
+      return;
+    }
+    if (gradable && !revealed) {
+      change({
+        revealed: [...draft.revealed, step],
+        ...(step === "mission" ? { rubric: solidIndexes(draft.writing) } : {}),
+      });
       return;
     }
     if (step === "summary") {
@@ -151,11 +184,15 @@ export function LearningSession({
     }
     change({ step: draft.step + 1 });
   };
-  const missionPrompts =
-    draft.minutes === 10
-      ? lesson.mission.prompts.slice(0, 1)
-      : lesson.mission.prompts;
-  const canNext = !isQuestion || answered || revealed;
+  const canNext = isQuestion
+    ? answered || revealed
+    : !gradable ||
+      revealed ||
+      (step === "mission"
+        ? draft.writing.some((w) => w?.trim())
+        : !!draft.reflection.trim());
+  const grades = step === "mission" && revealed ? gradeAll(draft.writing) : [];
+  const solidCount = draft.rubric.length;
   const correct = [
     "check",
     ...(draft.minutes >= 20 ? ["transfer"] : []),
@@ -257,7 +294,7 @@ export function LearningSession({
               ))}
             </div>
             <div className="worked-example">
-              <span className="eyebrow">UN EXEMPLE CONCRET</span>
+              <span className="eyebrow">Un exemple concret</span>
               <p>{lesson.example.context}</p>
               <div className="example-before">{lesson.example.before}</div>
               <ArrowRight className="example-arrow" size={20} />
@@ -297,51 +334,117 @@ export function LearningSession({
                   onChange={(e) => {
                     const w = [...draft.writing];
                     w[i] = e.target.value;
-                    change({ writing: w });
+                    change({
+                      writing: w,
+                      ...(revealed && missionChecks
+                        ? { rubric: solidIndexes(w) }
+                        : {}),
+                    });
                   }}
                 />
+                {grades[i] && <PromptFeedback grade={grades[i]} />}
               </label>
             ))}
-            <button
-              className="text-button"
-              onClick={() => setShowExample(!showExample)}
-            >
-              <Lightbulb size={16} />
-              {showExample
-                ? "Masquer la piste de réponse"
-                : "Voir une piste de réponse"}
-            </button>
-            {showExample && (
-              <div className="feedback neutral">
-                <strong>Une piste, parmi d’autres</strong>
-                <p>{lesson.mission.example}</p>
-              </div>
+            {missionChecks ? (
+              !revealed ? (
+                <>
+                  <button
+                    className="text-button"
+                    onClick={() => setShowExample(!showExample)}
+                  >
+                    <Lightbulb size={16} />
+                    {showExample ? "Masquer l’indice" : "Besoin d’un indice ?"}
+                  </button>
+                  {showExample && (
+                    <div className="feedback neutral">
+                      <strong>Une bonne réponse contient :</strong>
+                      <ul className="hint-list">
+                        {missionPrompts.map((p, i) => (
+                          <li key={p}>
+                            <b>{i + 1}.</b>{" "}
+                            {missionChecks[i]?.criteria
+                              .map((c) => c.label.toLowerCase())
+                              .join(" · ")}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <p className="correction-note">
+                    Écris tes réponses, puis demande la correction : chaque
+                    réponse reçoit un verdict et une réponse modèle.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="correction-summary" role="status">
+                    <strong>
+                      {solidCount}/{missionPrompts.length} ·{" "}
+                      {solidCount > 1 ? "réponses solides" : "réponse solide"}
+                    </strong>
+                    <p>
+                      Corrige tes réponses : le verdict se met à jour pendant
+                      que tu écris. La correction automatique repère les idées
+                      clés attendues ; elle ne juge pas le style.
+                    </p>
+                  </div>
+                  <AiCorrection
+                    title={lesson.mission.title}
+                    context={lesson.mission.context}
+                    items={missionPrompts.map((p, i) => ({
+                      prompt: p,
+                      answer: draft.writing[i] ?? "",
+                      model: missionChecks[i]?.model ?? "",
+                      criteria:
+                        missionChecks[i]?.criteria.map((c) => c.label) ?? [],
+                    }))}
+                  />
+                </>
+              )
+            ) : (
+              <>
+                <button
+                  className="text-button"
+                  onClick={() => setShowExample(!showExample)}
+                >
+                  <Lightbulb size={16} />
+                  {showExample
+                    ? "Masquer la piste de réponse"
+                    : "Voir une piste de réponse"}
+                </button>
+                {showExample && (
+                  <div className="feedback neutral">
+                    <strong>Une piste, parmi d’autres</strong>
+                    <p>{lesson.mission.example}</p>
+                  </div>
+                )}
+                <div className="self-review">
+                  <h3>Relis ton travail avec ces critères</h3>
+                  <p>
+                    Une autoévaluation pour guider ta réflexion, sans note
+                    automatique.
+                  </p>
+                  {lesson.mission.rubric
+                    .slice(0, draft.minutes === 10 ? 1 : 3)
+                    .map((r, i) => (
+                      <label key={r}>
+                        <input
+                          type="checkbox"
+                          checked={draft.rubric.includes(i)}
+                          onChange={() =>
+                            change({
+                              rubric: draft.rubric.includes(i)
+                                ? draft.rubric.filter((x) => x !== i)
+                                : [...draft.rubric, i],
+                            })
+                          }
+                        />
+                        {r}
+                      </label>
+                    ))}
+                </div>
+              </>
             )}
-            <div className="self-review">
-              <h3>Relis ton travail avec ces critères</h3>
-              <p>
-                Une autoévaluation pour guider ta réflexion, sans note
-                automatique.
-              </p>
-              {lesson.mission.rubric
-                .slice(0, draft.minutes === 10 ? 1 : 3)
-                .map((r, i) => (
-                  <label key={r}>
-                    <input
-                      type="checkbox"
-                      checked={draft.rubric.includes(i)}
-                      onChange={() =>
-                        change({
-                          rubric: draft.rubric.includes(i)
-                            ? draft.rubric.filter((x) => x !== i)
-                            : [...draft.rubric, i],
-                        })
-                      }
-                    />
-                    {r}
-                  </label>
-                ))}
-            </div>
             <button className="text-button" onClick={tutor}>
               <MessageCircle size={16} /> Demander un retour au tuteur
             </button>
@@ -363,13 +466,47 @@ export function LearningSession({
                 placeholder="J’ai compris que… La prochaine fois que…"
               />
             </label>
-            <div className="takeaway">
-              <Lightbulb size={22} />
-              <p>
-                Reformuler permet de repérer ce que l’on comprend vraiment et ce
-                qui reste à éclaircir.
-              </p>
-            </div>
+            {revealed && lesson.keyIdeas ? (
+              (() => {
+                const ideas = gradeCriteria(draft.reflection, lesson.keyIdeas);
+                const met = ideas.filter((c) => c.met).length;
+                return (
+                  <div
+                    className={`writing-feedback verdict-box-${met === ideas.length ? "solid" : met === 0 ? "revise" : "partial"}`}
+                    role="status"
+                  >
+                    <VerdictBadge
+                      verdict={
+                        met === ideas.length
+                          ? "solid"
+                          : met === 0
+                            ? "revise"
+                            : "partial"
+                      }
+                    />
+                    <p className="ideas-count">
+                      {met}/{ideas.length} idées clés retrouvées
+                    </p>
+                    <CriteriaList criteria={ideas} />
+                    <div className="model-answer">
+                      <span>L’essentiel à retenir</span>
+                      <p>{lesson.takeaway}</p>
+                      {lesson.cards.map((c) => (
+                        <p key={c.front}>{c.back}</p>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="takeaway">
+                <Lightbulb size={22} />
+                <p>
+                  Reformuler permet de repérer ce que l’on comprend vraiment et
+                  ce qui reste à éclaircir.
+                </p>
+              </div>
+            )}
           </>
         )}
         {step === "summary" && (
@@ -387,6 +524,14 @@ export function LearningSession({
                   </strong>
                   <span>questions d’application</span>
                 </div>
+                {missionChecks && draft.minutes >= 10 && (
+                  <div>
+                    <strong>
+                      {solidCount}/{missionPrompts.length}
+                    </strong>
+                    <span>réponses écrites solides</span>
+                  </div>
+                )}
                 <div>
                   <strong>{draft.minutes} min</strong>
                   <span>format choisi</span>
@@ -427,8 +572,12 @@ export function LearningSession({
           <button className="button primary" disabled={!canNext} onClick={next}>
             {step === "summary"
               ? "Terminer ma séance"
-              : isQuestion && !revealed
-                ? "Vérifier ma réponse"
+              : toCorrect
+                ? isQuestion
+                  ? "Vérifier ma réponse"
+                  : step === "mission"
+                    ? "Corriger mes réponses"
+                    : "Vérifier ma reformulation"
                 : "Continuer"}
             <ArrowRight size={18} />
           </button>

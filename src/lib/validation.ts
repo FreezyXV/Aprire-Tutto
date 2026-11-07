@@ -152,4 +152,33 @@ export const learnRequestSchema = z.discriminatedUnion("action", [
     }),
     requestId: z.uuid(),
   }),
+  z.object({
+    action: z.literal("grade"),
+    title: z.string().max(300),
+    context: z.string().max(3000),
+    items: z
+      .array(
+        z.object({
+          prompt: z.string().max(1000),
+          answer: z.string().max(3000),
+          model: z.string().max(2000),
+          criteria: z.array(z.string().max(300)).max(6),
+        }),
+      )
+      .min(1)
+      .max(3),
+    requestId: z.uuid(),
+  }),
 ]);
+export const gradeResultSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        verdict: z.enum(["solid", "partial", "revise"]),
+        feedback: z.string().min(1).max(2000),
+        improved: z.string().max(2000).default(""),
+      }),
+    )
+    .min(1)
+    .max(3),
+});

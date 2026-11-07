@@ -8,6 +8,13 @@ export type Question = {
   explanation: string;
 };
 export type Source = { title: string; url: string };
+/** An idea expected in a written answer, detected with accent-free regexes. */
+export type Criterion = { label: string; patterns: string[]; hint: string };
+export type PromptCheck = {
+  model: string;
+  criteria: Criterion[];
+  avoid?: { patterns: string[]; message: string }[];
+};
 export type Lesson = {
   id: string;
   title: string;
@@ -26,7 +33,11 @@ export type Lesson = {
     prompts: string[];
     rubric: string[];
     example: string;
+    /** One automatic correction per prompt (built-in courses). */
+    checks?: PromptCheck[];
   };
+  /** Ideas a good reformulation of the lesson should contain. */
+  keyIdeas?: Criterion[];
   cards: { front: string; back: string }[];
 };
 export type Course = {

@@ -6,7 +6,8 @@ Un espace personnel pour comprendre, pratiquer et retenir. Application web en fr
 
 - Choix quotidien de séances de 5, 10, 20 ou 30 minutes, avec des étapes réellement différentes.
 - Premier parcours Business Analysis : 8 leçons originales, BA/MOA/AMOA/MOE, parties prenantes, exigences, processus, priorisation, données et recette.
-- Rappel avant la leçon, exemples commentés, exercices corrigés, productions écrites, autoévaluation et test final distinct.
+- Rappel avant la leçon, exemples commentés, exercices corrigés, productions écrites et test final distinct.
+- Correction des réponses écrites : verdict par réponse (solide / en bonne voie / à retravailler), idées clés trouvées ou manquantes avec un conseil, erreur typique signalée, réponse modèle. Mise à jour pendant la réécriture, sans réseau (`src/lib/grading.ts`, grilles dans `src/data/ba-grading.ts`). La correction automatique repère des idées attendues ; elle ne juge pas le style. Une correction détaillée par DeepSeek (verdict, explication, réponse améliorée) est proposée en complément quand la clé est configurée ; elle partage l’enveloppe du tuteur.
 - Cartes de révision avec espacement selon la difficulté du rappel. Cet algorithme simple est un point de départ, pas une mesure scientifique de maîtrise.
 - Brouillons et progression sur l’appareil, export JSON, compte personnel Supabase, synchronisation avec contrôle de version et choix explicite en cas de conflit.
 - Création de parcours sur d’autres sujets et tuteur avec DeepSeek V4 Pro, une fois la clé API configurée. La génération recherche des références web puis vérifie le format et les liens de la réponse.

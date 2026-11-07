@@ -151,11 +151,10 @@ test("Generated courses only retain sources returned by research and receive uni
     fake,
   );
   assert.equal(calls, 2);
-  assert.ok(result.course);
-  assert.notEqual(result.course.id, baCourse.id);
-  assert.ok(
-    result.course.lessons.every((l) => l.id.startsWith(result.course!.id)),
-  );
+  assert.ok("course" in result && result.course);
+  const course = result.course;
+  assert.notEqual(course.id, baCourse.id);
+  assert.ok(course.lessons.every((l) => l.id.startsWith(course.id)));
 });
 test("Research failure fails closed without generating an unsourced course", async () => {
   let calls = 0;
