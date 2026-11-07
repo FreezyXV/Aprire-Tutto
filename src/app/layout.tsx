@@ -6,6 +6,7 @@ import "@fontsource/dm-sans/700.css";
 import "@fontsource/lora/400.css";
 import "@fontsource/lora/400-italic.css";
 import "./globals.css";
+import { ServiceWorker } from "@/components/service-worker";
 export const metadata: Metadata = {
   title: "Aprire Tutto — Ouvre tes horizons",
   description:
@@ -31,7 +32,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorker />
+      </body>
     </html>
   );
 }

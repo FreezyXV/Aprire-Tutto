@@ -575,8 +575,7 @@ export default function LearningApp() {
                         <Plus size={24} />
                       </span>
                       <strong>
-                        Et si tu explorais
-                        <br />
+                        Et si tu explorais <br />
                         autre chose ?
                       </strong>
                       <span>Une idée suffit pour commencer.</span>

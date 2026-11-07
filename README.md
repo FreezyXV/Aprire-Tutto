@@ -10,7 +10,7 @@ Un espace personnel pour comprendre, pratiquer et retenir. Application web en fr
 - Cartes de révision avec espacement selon la difficulté du rappel. Cet algorithme simple est un point de départ, pas une mesure scientifique de maîtrise.
 - Brouillons et progression sur l’appareil, export JSON, compte personnel Supabase, synchronisation avec contrôle de version et choix explicite en cas de conflit.
 - Création de parcours sur d’autres sujets et tuteur avec DeepSeek V4 Pro, une fois la clé API configurée. La génération recherche des références web puis vérifie le format et les liens de la réponse.
-- Installation sur l’écran d’accueil via le menu de partage de Safari. Pas de notifications ni de chargement initial hors connexion dans cette version.
+- Installation sur l’écran d’accueil via le menu de partage de Safari. Après une première visite en ligne, l’app s’ouvre hors connexion (service worker) : parcours BA, séances et révisions restent utilisables ; cloud et IA reprennent au retour du réseau. Pas de notifications dans cette version.
 
 ## Développement
 
@@ -30,10 +30,26 @@ npm run typecheck
 npm run build
 ```
 
+La CI GitHub Actions (`.github/workflows/ci.yml`) rejoue ces trois commandes à chaque push sur `main` et sur chaque pull request.
+
 ## Supabase
 
-1. Sur un projet dédié, exécuter `supabase/schema.sql` une seule fois. Ce fichier initialise les tables et les fonctions ; ce n’est pas une migration incrémentale à rejouer sur une base existante.
-2. Ajouter l’adresse autorisée dans `private.app_owner` via le SQL Editor :
+Le schéma est une migration Supabase CLI : `supabase/migrations/20261106000000_initial_schema.sql`.
+
+1. Appliquer le schéma, au choix :
+   - **CLI** (depuis la racine du dépôt) :
+
+     ```sh
+     npx supabase login
+     npx supabase init        # crée supabase/config.toml, conserve les migrations
+     npx supabase link --project-ref kwyexsbyzeihhjlrgvpm
+     npx supabase db push
+     ```
+
+     Si le schéma a déjà été appliqué à la main (SQL Editor), marquer la migration comme appliquée au lieu de la rejouer : `npx supabase migration repair --status applied 20261106000000`.
+
+   - **SQL Editor** : coller le contenu du fichier de migration et l’exécuter une seule fois.
+2. Ajouter l’adresse autorisée dans `private.app_owner` via le SQL Editor (non versionnée : le dépôt est public) :
 
 ```sql
 insert into private.app_owner(email) values ('you@example.com');

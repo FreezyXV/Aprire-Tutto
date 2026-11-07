@@ -1,5 +1,4 @@
--- Initial schema. Run on the dedicated Aprire Tutto project only.
-begin;
+-- Initial schema (Supabase CLI migration). Apply with `supabase db push`.
 create schema if not exists private;
 revoke all on schema private from public, anon;
 grant usage on schema private to authenticated;
@@ -84,4 +83,3 @@ create or replace function public.reserve_ai(request_id uuid,kind text) returns 
 language sql security invoker set search_path='' as $$ select private.reserve_ai(request_id,kind); $$;
 revoke all on function public.reserve_ai(uuid,text) from public,anon;
 grant execute on function public.reserve_ai(uuid,text) to authenticated;
-commit;
