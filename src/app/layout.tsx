@@ -1,11 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource/dm-sans/400.css";
-import "@fontsource/dm-sans/500.css";
-import "@fontsource/dm-sans/600.css";
-import "@fontsource/dm-sans/700.css";
-import "@fontsource/lora/400.css";
-import "@fontsource/lora/400-italic.css";
+import "@fontsource-variable/bricolage-grotesque/standard.css";
+import "@fontsource/atkinson-hyperlegible-next/400.css";
+import "@fontsource/atkinson-hyperlegible-next/500.css";
+import "@fontsource/atkinson-hyperlegible-next/700.css";
 import "./globals.css";
+import { ServiceWorker } from "@/components/service-worker";
 export const metadata: Metadata = {
   title: "Aprire Tutto — Ouvre tes horizons",
   description:
@@ -22,7 +21,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f7f7f1",
+  themeColor: "#f1e6d2",
 };
 export default function RootLayout({
   children,
@@ -31,7 +30,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorker />
+      </body>
     </html>
   );
 }
