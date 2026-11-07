@@ -51,11 +51,21 @@ export function CriteriaList({ criteria }: { criteria: CriterionResult[] }) {
   );
 }
 
-function Source({ ai }: { ai: boolean }) {
+function Source({ kind }: { kind: "ai" | "grid" | "offline" }) {
   return (
     <span className="grade-source">
-      {ai ? <Sparkles size={13} /> : <WifiOff size={13} />}
-      {ai ? "Correction IA" : "Correction hors ligne"}
+      {kind === "ai" ? (
+        <Sparkles size={13} />
+      ) : kind === "grid" ? (
+        <Check size={13} />
+      ) : (
+        <WifiOff size={13} />
+      )}
+      {kind === "ai"
+        ? "Correction IA"
+        : kind === "grid"
+          ? "Validé par la grille"
+          : "Correction hors ligne"}
     </span>
   );
 }
@@ -99,7 +109,7 @@ export function AnswerFeedback({
     <div className={`writing-feedback verdict-box-${verdict}`} role="status">
       <div className="grade-head">
         <VerdictBadge verdict={verdict} />
-        <Source ai={!!ai} />
+        <Source kind={ai ? (ai.by === "grid" ? "grid" : "ai") : "offline"} />
       </div>
       {pending && !ai && (
         <p className="grade-pending">

@@ -187,3 +187,76 @@ test("Saved progress keeps AI verdicts and rejects unknown ones", async () => {
   (bad.aiGrades.mission.items[0] as { verdict: string }).verdict = "bravo";
   assert.equal(stateSchema.safeParse({ ...base, session: bad }).success, false);
 });
+
+test("A paid course is kept even with duplicate IDs, bad enums or one broken lesson", async () => {
+  const { salvageCourse } = await import("../src/lib/deepseek");
+  const raw = structuredClone(baCourse) as unknown as Record<
+    string,
+    unknown
+  > & {
+    lessons: Record<string, unknown>[];
+  };
+  raw.lessons = raw.lessons
+    .slice(0, 4)
+    .map((l) => ({ ...l, id: "sera-remplace" }));
+  raw.color = "turquoise";
+  raw.icon = "rocket";
+  delete raw.lessons[2].check;
+  const course = salvageCourse(raw);
+  assert.ok(course);
+  assert.equal(course.lessons.length, 3);
+  assert.equal(new Set(course.lessons.map((l) => l.id)).size, 3);
+  assert.equal(salvageCourse({ lessons: [{}] }), null);
+});
+
+test("Each AI action uses the measured cheapest reliable settings", async () => {
+  const seen: Record<string, { model: string; effort: string; max: number }> =
+    {};
+  const fake: typeof fetch = async (_u, init) => {
+    const b = JSON.parse(String(init?.body));
+    const content = b.messages[0].content.includes("Tu corriges")
+      ? JSON.stringify({
+          items: [{ verdict: "solid", feedback: "Juste.", improved: "" }],
+        })
+      : "Réponse.";
+    seen[content === "Réponse." ? "tutor" : "grade"] = {
+      model: b.model,
+      effort: b.reasoning_effort,
+      max: b.max_tokens,
+    };
+    return Response.json({
+      choices: [{ finish_reason: "stop", message: { content } }],
+    });
+  };
+  await runLearning(
+    {
+      action: "tutor",
+      question: "Pourquoi ?",
+      context: { title: "t", takeaway: "t", writing: "", rubric: [] },
+      requestId: uuid,
+    },
+    new AbortController().signal,
+    fake,
+  );
+  await runLearning(
+    {
+      action: "grade",
+      title: "t",
+      context: "c",
+      items: [{ prompt: "p", answer: "a", model: "m", criteria: [] }],
+      requestId: uuid,
+    },
+    new AbortController().signal,
+    fake,
+  );
+  assert.deepEqual(seen.tutor, {
+    model: "deepseek-flash",
+    effort: "low",
+    max: 4000,
+  });
+  assert.deepEqual(seen.grade, {
+    model: "deepseek-flash",
+    effort: "high",
+    max: 8000,
+  });
+});

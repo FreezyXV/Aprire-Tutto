@@ -55,6 +55,8 @@ export type AiGrade = {
   verdict: "solid" | "partial" | "revise";
   feedback: string;
   improved: string;
+  /** Settled locally (empty, or every expected idea present): no AI call. */
+  by?: "grid";
 };
 /** AI arbitration kept with the answers it judged (stale once they change). */
 export type AiGrades = Partial<
