@@ -2,6 +2,11 @@ import { z } from "zod";
 const text = z.string().min(1).max(8000);
 const id = z.string().min(1).max(160);
 const date = z.iso.datetime();
+const aiGradeSchema = z.object({
+  verdict: z.enum(["solid", "partial", "revise"]),
+  feedback: z.string().min(1).max(2000),
+  improved: z.string().max(2000).default(""),
+});
 export const minutesSchema = z.union([
   z.literal(5),
   z.literal(10),
@@ -74,6 +79,16 @@ const session = z
     rubric,
     reflection: z.string().max(12000),
     startedAt: date,
+    aiGrades: z
+      .partialRecord(
+        z.enum(["mission", "reflection"]),
+        z.object({
+          answers: z.array(z.string().max(12000)).max(3),
+          items: z.array(aiGradeSchema).max(3),
+          at: date,
+        }),
+      )
+      .optional(),
   })
   .refine(
     (s) =>
@@ -171,14 +186,5 @@ export const learnRequestSchema = z.discriminatedUnion("action", [
   }),
 ]);
 export const gradeResultSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        verdict: z.enum(["solid", "partial", "revise"]),
-        feedback: z.string().min(1).max(2000),
-        improved: z.string().max(2000).default(""),
-      }),
-    )
-    .min(1)
-    .max(3),
+  items: z.array(aiGradeSchema).min(1).max(3),
 });

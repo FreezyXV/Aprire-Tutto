@@ -51,6 +51,18 @@ export type Course = {
   sources: Source[];
   generatedAt?: string;
 };
+export type AiGrade = {
+  verdict: "solid" | "partial" | "revise";
+  feedback: string;
+  improved: string;
+};
+/** AI arbitration kept with the answers it judged (stale once they change). */
+export type AiGrades = Partial<
+  Record<
+    "mission" | "reflection",
+    { answers: string[]; items: AiGrade[]; at: string }
+  >
+>;
 export type SessionDraft = {
   id: string;
   courseId: string;
@@ -63,6 +75,7 @@ export type SessionDraft = {
   rubric: number[];
   reflection: string;
   startedAt: string;
+  aiGrades?: AiGrades;
 };
 export type Completion = {
   sessionId: string;

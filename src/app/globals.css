@@ -4548,3 +4548,42 @@ h3 {
   background: #f1c9c4;
   color: var(--correction);
 }
+/* Source du verdict : IA (arbitre) ou hors ligne */
+.grade-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.grade-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.grade-pending {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.offline-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.ai-notice {
+  margin-top: 8px !important;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+}
+.correction-summary .button {
+  margin-top: 12px;
+}

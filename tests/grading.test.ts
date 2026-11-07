@@ -155,3 +155,35 @@ test("AI grading returns one verdict per answer and rejects incomplete output", 
     ),
   );
 });
+
+test("Saved progress keeps AI verdicts and rejects unknown ones", async () => {
+  const { initialState } = await import("../src/lib/learning");
+  const { stateSchema } = await import("../src/lib/validation");
+  const base = initialState();
+  const session = {
+    id: uuid,
+    courseId: baCourse.id,
+    lessonId: "ba-besoin",
+    minutes: 30 as const,
+    step: 3,
+    answers: {},
+    revealed: ["mission"],
+    writing: ["Pourquoi ?"],
+    rubric: [0],
+    reflection: "",
+    startedAt: new Date().toISOString(),
+    aiGrades: {
+      mission: {
+        answers: ["Pourquoi ?"],
+        items: [{ verdict: "solid", feedback: "Juste.", improved: "" }],
+        at: new Date().toISOString(),
+      },
+    },
+  };
+  const ok = stateSchema.safeParse({ ...base, session });
+  assert.equal(ok.success, true);
+  assert.equal(ok.data?.session?.aiGrades?.mission?.items[0].verdict, "solid");
+  const bad = structuredClone(session);
+  (bad.aiGrades.mission.items[0] as { verdict: string }).verdict = "bravo";
+  assert.equal(stateSchema.safeParse({ ...base, session: bad }).success, false);
+});
