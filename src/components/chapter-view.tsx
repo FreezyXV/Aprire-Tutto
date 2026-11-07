@@ -7,8 +7,6 @@ import {
   Check,
   Clock3,
   Lightbulb,
-  LoaderCircle,
-  Sparkles,
   Target,
   X,
 } from "lucide-react";
@@ -45,8 +43,6 @@ export function ChapterReader({
   onPractice,
   onBack,
   onNext,
-  aiReady,
-  generate,
 }: {
   course: Course;
   lesson: Lesson;
@@ -57,15 +53,11 @@ export function ChapterReader({
   onPractice: () => void;
   onBack: () => void;
   onNext?: () => void;
-  aiReady: boolean;
-  generate: () => Promise<void>;
 }) {
   const c = lesson.chapter;
   const root = useRef<HTMLDivElement>(null);
   const reached = useRef(mark?.section ?? 0);
   const [resumed, setResumed] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
   // Resume where the reader stopped, unless the chapter was finished.
   useEffect(() => {
@@ -126,43 +118,14 @@ export function ChapterReader({
         <div className="chapter-empty">
           <BookOpen size={28} />
           <p>
-            Le cours détaillé de ce chapitre n’a pas encore été rédigé. Il est
-            créé une seule fois, puis conservé et disponible hors connexion.
+            Le cours détaillé de ce chapitre est en préparation : il sera rédigé
+            et ajouté directement dans l’app.
           </p>
-          {error && <p className="form-error">{error}</p>}
-          <button
-            className="button primary"
-            disabled={!aiReady || busy}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                await generate();
-              } catch (e) {
-                setError(
-                  e instanceof Error
-                    ? e.message
-                    : "Le cours n’a pas pu être créé.",
-                );
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? (
-              <LoaderCircle size={17} className="spin" />
-            ) : (
-              <Sparkles size={17} />
-            )}
-            {busy
-              ? "Rédaction du cours (environ 30 s)…"
-              : aiReady
-                ? "Rédiger le cours de ce chapitre"
-                : "Disponible quand l’IA est connectée"}
-          </button>
-          <p className="muted small-text">
-            En attendant : {lesson.paragraphs.join(" ")}
-          </p>
+          <div className="lesson-copy">
+            {lesson.paragraphs.map((p) => (
+              <p key={p}>{p}</p>
+            ))}
+          </div>
         </div>
       </div>
     );

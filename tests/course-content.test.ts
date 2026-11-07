@@ -89,19 +89,6 @@ test("Arbitration only sends doubtful, changed answers to the AI", async () => {
   assert.ok(again.toAsk.length <= 1);
 });
 
-test("A generated chapter keeps its content when one diagram is malformed", async () => {
-  const { salvageChapter } = await import("../src/lib/deepseek");
-  const raw = structuredClone(baCourse.lessons[0].chapter!) as unknown as {
-    sections: { diagram?: unknown }[];
-  };
-  raw.sections[1].diagram = { kind: "flow", title: "x", steps: [] };
-  const chapter = salvageChapter(raw);
-  assert.ok(chapter);
-  assert.equal(chapter.sections.length, raw.sections.length);
-  assert.equal(chapter.sections[1].diagram, undefined);
-  assert.equal(salvageChapter({ sections: "nope" }), null);
-});
-
 test("Saved progress accepts reading marks and practice results", async () => {
   const { initialState } = await import("../src/lib/learning");
   const state = {

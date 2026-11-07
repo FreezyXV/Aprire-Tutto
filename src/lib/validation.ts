@@ -265,6 +265,18 @@ export const stateSchema = z.object({
     )
     .max(2000)
     .optional(),
+  wishes: z
+    .array(
+      z.object({
+        id,
+        topic: z.string().min(2).max(140),
+        goal: z.string().max(800),
+        level: z.string().max(60),
+        at: date,
+      }),
+    )
+    .max(200)
+    .optional(),
   practice: z
     .array(
       z.object({
@@ -281,17 +293,6 @@ export const stateSchema = z.object({
 });
 export const learnRequestSchema = z.discriminatedUnion("action", [
   z.object({
-    action: z.literal("course"),
-    topic: z.string().trim().min(2).max(140),
-    goal: z.string().max(800),
-    level: z.enum([
-      "Je découvre",
-      "J’ai quelques bases",
-      "Je veux approfondir",
-    ]),
-    requestId: z.uuid(),
-  }),
-  z.object({
     action: z.literal("tutor"),
     question: z.string().trim().min(2).max(2000),
     context: z.object({
@@ -299,23 +300,6 @@ export const learnRequestSchema = z.discriminatedUnion("action", [
       takeaway: z.string().max(3000),
       writing: z.string().max(10000),
       rubric: z.array(z.string().max(1000)).max(6),
-    }),
-    requestId: z.uuid(),
-  }),
-  z.object({
-    action: z.literal("chapter"),
-    topic: z.string().trim().min(2).max(140),
-    lesson: z.object({
-      title: z.string().max(300),
-      subtitle: z.string().max(300),
-      skill: z.string().max(300),
-      paragraphs: z.array(z.string().max(2000)).max(6),
-      takeaway: z.string().max(1000),
-      example: z.object({
-        context: z.string().max(1000),
-        before: z.string().max(1000),
-        after: z.string().max(1000),
-      }),
     }),
     requestId: z.uuid(),
   }),

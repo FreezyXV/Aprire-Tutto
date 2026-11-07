@@ -5510,3 +5510,37 @@ h3 {
   display: block;
   width: 100%;
 }
+.wishes {
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px dashed var(--apricot-line);
+}
+.wishes h2 {
+  font-size: 18px;
+}
+.wishes ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.wishes li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--soft);
+}
+.wishes li div {
+  display: grid;
+  gap: 2px;
+}
+.wishes li span {
+  font-size: 13px;
+  color: var(--muted);
+}

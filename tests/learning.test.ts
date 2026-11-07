@@ -113,66 +113,28 @@ test("Truncated and blank AI responses cannot become lessons", () => {
     }),
   );
 });
-test("Generated courses only retain sources returned by research and receive unique IDs", async () => {
-  let calls = 0;
-  const fake: typeof fetch = async (url, init) => {
-    calls++;
-    const body = JSON.parse(String(init?.body));
-    if (String(url).includes("tools/search"))
-      return Response.json({
-        results: baCourse.sources.map((s) => ({
-          ...s,
-          summary: "Référence professionnelle",
-          content: "Principes fondamentaux",
-          authority: 4,
-        })),
-      });
-    assert.equal(body.model, "deepseek-flash");
-    assert.equal(body.reasoning_effort, "high");
-    assert.equal(body.max_tokens, 24000);
-    return Response.json({
-      choices: [
-        {
-          finish_reason: "stop",
-          message: { content: JSON.stringify(baCourse) },
-        },
-      ],
-    });
-  };
-  const result = await runLearning(
-    {
-      action: "course",
-      topic: "Business Analysis",
-      goal: "Pratiquer",
-      level: "Je découvre",
-      requestId: uuid,
-    },
-    new AbortController().signal,
-    fake,
-  );
-  assert.equal(calls, 2);
-  assert.ok("course" in result && result.course);
-  const course = result.course;
-  assert.notEqual(course.id, baCourse.id);
-  assert.ok(course.lessons.every((l) => l.id.startsWith(course.id)));
-});
-test("Research failure fails closed without generating an unsourced course", async () => {
-  let calls = 0;
-  await assert.rejects(
-    runLearning(
-      {
-        action: "course",
-        topic: "Business Analysis",
+
+test("The AI cannot be asked to create courses or chapters", async () => {
+  const { learnRequestSchema } = await import("../src/lib/validation");
+  for (const action of ["course", "chapter"])
+    assert.equal(
+      learnRequestSchema.safeParse({
+        action,
+        topic: "SQL",
         goal: "",
         level: "Je découvre",
         requestId: uuid,
-      },
-      new AbortController().signal,
-      async () => {
-        calls++;
-        return Response.json({ results: [] });
-      },
-    ),
+      }).success,
+      false,
+    );
+  assert.equal(
+    learnRequestSchema.safeParse({
+      action: "grade",
+      title: "t",
+      context: "c",
+      items: [{ prompt: "p", answer: "a", model: "m", criteria: [] }],
+      requestId: uuid,
+    }).success,
+    true,
   );
-  assert.equal(calls, 1);
 });
