@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.vercel/
+*.tsbuildinfo
+test-results/
+.DS_Store
+
+# Private planning and local review artifacts
+CAHIER_DES_CHARGES.md
+artifacts/
+
+next-env.d.ts
