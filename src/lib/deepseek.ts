@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { AppError } from "./server";
 import {
+  chapterSchema,
   courseSchema,
+  diagramSchema,
   gradeResultSchema,
   learnRequestSchema,
   lessonSchema,
@@ -22,6 +24,7 @@ const searchResultSchema = sourceSchema.extend({
 const settings = {
   course: { model: "deepseek-flash", effort: "high", maxTokens: 24000 },
   grade: { model: "deepseek-flash", effort: "high", maxTokens: 8000 },
+  chapter: { model: "deepseek-flash", effort: "high", maxTokens: 12000 },
   tutor: { model: "deepseek-flash", effort: "low", maxTokens: 4000 },
 } as const;
 export async function deepseek(
@@ -186,6 +189,9 @@ export async function runLearning(
       date: new Date().toISOString().slice(0, 10),
       references: sources,
     });
+  } else if (input.action === "chapter") {
+    system += ` Rédige le cours de référence d’UN chapitre, pour un mode lecture sur iPhone. Progression : principe simple, puis nuances. 3 à 5 sections courtes (2 ou 3 paragraphes chacune). Ajoute 1 ou 2 schémas seulement s’ils aident vraiment, choisis selon ce qu’il faut comprendre : "flow" pour des étapes, "table" pour comparer, "quadrant" pour une matrice 2x2, "lanes" pour un processus entre acteurs. Peu d’éléments par schéma (lisible sur mobile), libellés courts. Puis un exemple entièrement expliqué, les confusions fréquentes avec contre-exemple, une fiche de synthèse et un petit glossaire. Pas de Markdown, texte français naturel, tutoiement. Ne prétends pas citer de source. Réponds uniquement en JSON conforme à cet exemple : ${JSON.stringify(chapterShape)}`;
+    user = JSON.stringify({ sujet: input.topic, lecon: input.lesson });
   } else if (input.action === "grade") {
     system += ` Tu corriges des réponses écrites d’un apprenant. Pour chaque item, compare la réponse à la question, aux critères et à la réponse modèle (qui n’est qu’un exemple : une autre formulation juste est valable). Verdict : "solid" si la réponse est juste et couvre les critères, "partial" si elle est juste mais incomplète ou imprécise, "revise" si elle est fausse, hors sujet, vide, ou si elle commet l’erreur décrite dans "alert" (vérifie d’abord que l’alerte est fondée). feedback : 2 phrases maximum en tutoyant, ce qui est juste puis ce qui manque ou est faux, concrètement. improved : la réponse de l’apprenant réécrite correctement en gardant ses idées, en une ou deux phrases ; chaîne vide si le verdict est "solid" ou si la réponse est vide. Réponds uniquement en JSON : {"items":[{"verdict":"solid|partial|revise","feedback":"…","improved":"…"}]}, un item par question, dans l’ordre. Pas de Markdown.`;
     user = JSON.stringify({
@@ -233,6 +239,18 @@ export async function runLearning(
         .replace(/^#{1,6}\s+/gm, "")
         .trim(),
     };
+  if (input.action === "chapter") {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(content);
+    } catch {
+      throw new AppError(502, "Le cours reçu est mal formé.");
+    }
+    const chapter = salvageChapter(raw);
+    if (!chapter)
+      throw new AppError(502, "Le cours reçu est incomplet. Réessaie.");
+    return { chapter };
+  }
   if (input.action === "grade") {
     let graded: unknown;
     try {
@@ -288,6 +306,58 @@ export async function runLearning(
  * instead of rejecting the whole course for one faulty field. IDs and the
  * display enums are assigned here, so model mistakes on them never matter.
  */
+/** Keep a paid chapter even if one diagram is malformed: drop that diagram. */
+export function salvageChapter(object: unknown) {
+  const direct = chapterSchema.safeParse(object);
+  if (direct.success) return direct.data;
+  if (!object || typeof object !== "object") return null;
+  const raw = object as { sections?: unknown };
+  if (!Array.isArray(raw.sections)) return null;
+  const sections = raw.sections.map((sec) => {
+    if (!sec || typeof sec !== "object") return sec;
+    const { diagram, ...rest } = sec as Record<string, unknown>;
+    return diagramSchema.safeParse(diagram).success
+      ? { ...rest, diagram }
+      : rest;
+  });
+  const retry = chapterSchema.safeParse({ ...raw, sections });
+  return retry.success ? retry.data : null;
+}
+const chapterShape = {
+  objective: "À la fin de ce chapitre, tu sauras…",
+  prerequisites: ["Notion utile avant de commencer"],
+  sections: [
+    {
+      heading: "Titre de section",
+      paragraphs: ["Paragraphe court.", "Paragraphe court."],
+      diagram: {
+        kind: "flow",
+        title: "Titre du schéma",
+        steps: [
+          { label: "Étape", note: "Précision courte" },
+          { label: "Étape suivante" },
+        ],
+        caption: "Ce que le schéma montre.",
+      },
+      keyPoint: "L’idée à retenir de la section.",
+    },
+  ],
+  workedExample: {
+    title: "Titre",
+    situation: "Situation concrète",
+    steps: [{ label: "Étape", detail: "Ce qu’on fait et pourquoi" }],
+    outcome: "Résultat",
+  },
+  pitfalls: [
+    {
+      confusion: "Erreur fréquente",
+      correction: "Ce qu’il faut comprendre",
+      counterExample: "Exemple qui le montre",
+    },
+  ],
+  summary: ["Point clé"],
+  glossary: [{ term: "Terme", definition: "Définition courte" }],
+};
 export function salvageCourse(object: unknown) {
   if (!object || typeof object !== "object") return null;
   const raw = object as Record<string, unknown>;

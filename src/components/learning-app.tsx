@@ -48,11 +48,20 @@ import { Brand, CourseArt, Empty, Modal, Pill, Ring } from "./ui";
 import { SessionOutline } from "./session-outline";
 import { Choice, LearningSession } from "./session";
 import { useLearning } from "./use-learning";
+import { ChapterReader, readingMinutes } from "./chapter-view";
+import {
+  PracticeHub,
+  PracticeRunner,
+  practicedLevels,
+  type Level,
+} from "./practice-view";
+import type { Chapter, PracticeResult, ReadingMark } from "@/lib/types";
 const nav = [
   { id: "today", label: "Aujourd’hui", icon: Sun },
-  { id: "subjects", label: "Mes sujets", icon: Layers3 },
+  { id: "subjects", label: "Cours", icon: BookOpen },
+  { id: "practice", label: "Pratique", icon: Target },
   { id: "reviews", label: "Révisions", icon: RotateCcw },
-  { id: "progress", label: "Ma progression", icon: TrendingUp },
+  { id: "progress", label: "Progression", icon: TrendingUp },
 ] as const;
 const durationLabels: Record<Minutes, string> = {
   5: "Un petit pas",
@@ -89,6 +98,18 @@ export default function LearningApp() {
     [loginError, setLoginError] = useState(""),
     [register, setRegister] = useState(false),
     [loginNotice, setLoginNotice] = useState("");
+  const [chapterId, setChapterId] = useState<string | null>(null),
+    [practiceOpen, setPracticeOpen] = useState<{
+      lessonId: string;
+      level: Level;
+    } | null>(null),
+    [aiReady, setAiReady] = useState(false);
+  useEffect(() => {
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((b) => setAiReady(!!b.ai))
+      .catch(() => setAiReady(false));
+  }, []);
   const courses = [baCourse, ...state.courses];
   const course = courses.find((c) => c.id === courseId) ?? baCourse;
   const done = completedLessonIds(state, course.id);
@@ -244,6 +265,88 @@ export default function LearningApp() {
     setCourseId(c.id);
     navigate("course");
   };
+  const reading: ReadingMark[] = state.reading ?? [];
+  const practiceResults: PracticeResult[] = state.practice ?? [];
+  const markOf = (lessonId: string) =>
+    reading.find((r) => r.courseId === course.id && r.lessonId === lessonId);
+  const openChapter = (l: Lesson) => {
+    setChapterId(l.id);
+    setView("chapter");
+  };
+  const markReading = (lessonId: string, section: number, finished: boolean) =>
+    update((s) => {
+      const list = s.reading ?? [];
+      const prev = list.find(
+        (r) => r.courseId === course.id && r.lessonId === lessonId,
+      );
+      if (prev && prev.section >= section && (!finished || prev.finishedAt))
+        return s;
+      const next: ReadingMark = {
+        courseId: course.id,
+        lessonId,
+        section: Math.max(section, prev?.section ?? 0),
+        finishedAt:
+          prev?.finishedAt ?? (finished ? new Date().toISOString() : undefined),
+      };
+      return {
+        ...s,
+        reading: [...list.filter((r) => r !== prev), next],
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  const savePractice = (
+    lessonId: string,
+    level: Level,
+    solid: number,
+    total: number,
+  ) =>
+    update((s) => ({
+      ...s,
+      practice: [
+        ...(s.practice ?? []),
+        {
+          courseId: course.id,
+          lessonId,
+          level,
+          solid,
+          total,
+          at: new Date().toISOString(),
+        },
+      ],
+      updatedAt: new Date().toISOString(),
+    }));
+  const generateChapter = async (lesson: Lesson) => {
+    const b = await callAi<{ chapter: Chapter }>({
+      action: "chapter",
+      topic: course.title.slice(0, 140),
+      lesson: {
+        title: lesson.title,
+        subtitle: lesson.subtitle,
+        skill: lesson.skill,
+        paragraphs: lesson.paragraphs,
+        takeaway: lesson.takeaway,
+        example: lesson.example,
+      },
+    });
+    update((s) => ({
+      ...s,
+      courses: s.courses.map((c) =>
+        c.id !== course.id
+          ? c
+          : {
+              ...c,
+              lessons: c.lessons.map((l) =>
+                l.id === lesson.id ? { ...l, chapter: b.chapter } : l,
+              ),
+            },
+      ),
+      updatedAt: new Date().toISOString(),
+    }));
+  };
+  const chapterLesson = course.lessons.find((l) => l.id === chapterId);
+  const practiceLesson = practiceOpen
+    ? course.lessons.find((l) => l.id === practiceOpen.lessonId)
+    : undefined;
   if (!ready)
     return (
       <div className="boot">
@@ -281,7 +384,7 @@ export default function LearningApp() {
               {nav.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
-                  className={`nav-item ${view === id || (view === "course" && id === "subjects") ? "active" : ""}`}
+                  className={`nav-item ${view === id || ((view === "course" || view === "chapter") && id === "subjects") ? "active" : ""}`}
                   aria-current={view === id ? "page" : undefined}
                   onClick={() => navigate(id)}
                 >
@@ -342,7 +445,7 @@ export default function LearningApp() {
                 Mon espace <ChevronRight size={13} />{" "}
                 {view === "today"
                   ? "Aujourd’hui"
-                  : view === "course"
+                  : view === "course" || view === "chapter"
                     ? course.title
                     : view === "settings"
                       ? "Réglages"
@@ -480,6 +583,24 @@ export default function LearningApp() {
                             : "Commencer ma séance"}
                           <ArrowRight size={18} />
                         </button>
+                        {!state.session &&
+                          nextLesson.chapter &&
+                          !markOf(nextLesson.id)?.finishedAt && (
+                            <p className="today-plan">
+                              {minutes >= readingMinutes(nextLesson) + 5
+                                ? `Avec ${minutes} min : lis d’abord le chapitre (${readingMinutes(nextLesson)} min), puis fais la séance.`
+                                : `Avec ${minutes} min : fais la séance ; garde la lecture du chapitre (${readingMinutes(nextLesson)} min) pour un jour plus long.`}
+                              <button
+                                className="text-button"
+                                onClick={() => openChapter(nextLesson)}
+                              >
+                                <BookOpen size={15} />
+                                {markOf(nextLesson.id)
+                                  ? "Reprendre la lecture"
+                                  : "Lire le chapitre"}
+                              </button>
+                            </p>
+                          )}
                         <div className="focus-footnote">
                           {durationLabels[minutes]} · aucune course à la
                           performance
@@ -696,7 +817,7 @@ export default function LearningApp() {
                     onClick={() => navigate("subjects")}
                   >
                     <ArrowLeft size={16} />
-                    Mes sujets
+                    Cours
                   </button>
                   <div className="course-hero">
                     <div>
@@ -743,32 +864,81 @@ export default function LearningApp() {
                     </span>
                   </div>
                   <div className="lesson-list">
-                    {course.lessons.map((lesson, i) => (
-                      <button
-                        className={`lesson-row ${done.has(lesson.id) ? "completed" : ""} ${lesson.id === nextLesson.id ? "next" : ""}`}
-                        key={lesson.id}
-                        onClick={() => start(lesson)}
-                      >
-                        <span className="lesson-number">
-                          {done.has(lesson.id) ? (
-                            <Check size={18} />
-                          ) : (
-                            String(i + 1).padStart(2, "0")
-                          )}
-                        </span>
-                        <div>
-                          <span className="lesson-skill">{lesson.skill}</span>
-                          <h3>{lesson.title}</h3>
-                          <p>{lesson.subtitle}</p>
-                        </div>
-                        {done.has(lesson.id) ? (
-                          <Pill>Exploré</Pill>
-                        ) : lesson.id === nextLesson.id ? (
-                          <Pill className="next-pill">Prochaine étape</Pill>
-                        ) : null}
-                        <ArrowUpRight size={20} />
-                      </button>
-                    ))}
+                    {course.lessons.map((lesson, i) => {
+                      const mark = markOf(lesson.id);
+                      const practiced = practicedLevels(
+                        practiceResults.filter((r) => r.courseId === course.id),
+                        lesson.id,
+                      );
+                      return (
+                        <article
+                          className={`lesson-row chapter-row ${done.has(lesson.id) ? "completed" : ""} ${lesson.id === nextLesson.id ? "next" : ""}`}
+                          key={lesson.id}
+                        >
+                          <span className="lesson-number">
+                            {String(i + 1).padStart(2, "0")}
+                          </span>
+                          <div className="chapter-row-body">
+                            <span className="lesson-skill">{lesson.skill}</span>
+                            <h3>{lesson.title}</h3>
+                            <p>{lesson.subtitle}</p>
+                            <div className="status-row">
+                              <span
+                                className={`status-chip ${mark?.finishedAt ? "read" : mark ? "reading" : ""}`}
+                              >
+                                <BookOpen size={12} />
+                                {mark?.finishedAt
+                                  ? "Lu"
+                                  : mark
+                                    ? "En cours de lecture"
+                                    : lesson.chapter
+                                      ? `${readingMinutes(lesson)} min de lecture`
+                                      : "Cours à rédiger"}
+                              </span>
+                              <span
+                                className={`status-chip ${practiced ? "practiced" : ""}`}
+                              >
+                                <Target size={12} /> Pratique {practiced}/3
+                              </span>
+                              <span
+                                className={`status-chip ${done.has(lesson.id) ? "reviewed" : ""}`}
+                              >
+                                <RotateCcw size={12} />
+                                {done.has(lesson.id)
+                                  ? "Séance faite"
+                                  : "Séance à faire"}
+                              </span>
+                            </div>
+                            <div className="chapter-actions">
+                              <button
+                                className="button secondary"
+                                onClick={() => openChapter(lesson)}
+                              >
+                                <BookOpen size={16} />
+                                {mark && !mark.finishedAt
+                                  ? "Reprendre"
+                                  : "Lire"}
+                              </button>
+                              <button
+                                className="button secondary"
+                                onClick={() => {
+                                  setView("practice");
+                                  window.scrollTo({ top: 0 });
+                                }}
+                              >
+                                <Target size={16} /> Pratiquer
+                              </button>
+                              <button
+                                className="text-button"
+                                onClick={() => start(lesson)}
+                              >
+                                Séance guidée <ArrowRight size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                   <section className="exam-banner">
                     <GraduationCap size={32} />
@@ -806,6 +976,69 @@ export default function LearningApp() {
                         : "Le référentiel BA fourni complète le cadrage. Ce parcours constitue un premier socle, à enrichir par des spécialisations."}
                     </p>
                   </details>
+                </>
+              )}
+              {view === "chapter" && chapterLesson && (
+                <ChapterReader
+                  course={course}
+                  lesson={chapterLesson}
+                  index={course.lessons.indexOf(chapterLesson)}
+                  mark={markOf(chapterLesson.id)}
+                  practiced={practicedLevels(
+                    practiceResults.filter((r) => r.courseId === course.id),
+                    chapterLesson.id,
+                  )}
+                  onProgress={(section, finished) =>
+                    markReading(chapterLesson.id, section, finished)
+                  }
+                  onPractice={() =>
+                    setPracticeOpen({
+                      lessonId: chapterLesson.id,
+                      level: 1,
+                    })
+                  }
+                  onBack={() => navigate("course")}
+                  onNext={(() => {
+                    const n =
+                      course.lessons[course.lessons.indexOf(chapterLesson) + 1];
+                    return n ? () => openChapter(n) : undefined;
+                  })()}
+                  aiReady={aiReady}
+                  generate={() => generateChapter(chapterLesson)}
+                />
+              )}
+              {view === "practice" && (
+                <>
+                  <PageTitle
+                    eyebrow="Apprendre en faisant"
+                    title="Pratique."
+                    description="Trois niveaux par chapitre : d’abord accompagné, puis avec moins d’aide, enfin en autonomie sur le fil rouge."
+                  />
+                  {courses.length > 1 && (
+                    <div className="course-switch" role="tablist">
+                      {courses.map((c) => (
+                        <button
+                          key={c.id}
+                          role="tab"
+                          aria-selected={c.id === course.id}
+                          className={c.id === course.id ? "selected" : ""}
+                          onClick={() => setCourseId(c.id)}
+                        >
+                          {c.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <PracticeHub
+                    course={course}
+                    results={practiceResults.filter(
+                      (r) => r.courseId === course.id,
+                    )}
+                    open={(l, level) =>
+                      setPracticeOpen({ lessonId: l.id, level })
+                    }
+                    read={openChapter}
+                  />
                 </>
               )}
               {view === "reviews" && (
@@ -995,6 +1228,62 @@ export default function LearningApp() {
                     }
                     description="Ce que tu as exploré, pratiqué et retrouvé de mémoire. Sans comparaison avec les autres."
                   />
+                  <section className="mastery">
+                    <h2>Lu, pratiqué, révisé : trois choses différentes</h2>
+                    <p className="muted">
+                      Lire un chapitre ne veut pas dire le maîtriser. Une
+                      compétence se construit en pratiquant, puis en la
+                      retrouvant de mémoire au fil du temps.
+                    </p>
+                    <div className="mastery-list">
+                      {baCourse.lessons.map((l, i) => {
+                        const mark = (state.reading ?? []).find(
+                          (r) => r.lessonId === l.id,
+                        );
+                        const practiced = practicedLevels(
+                          practiceResults,
+                          l.id,
+                        );
+                        const reviews = state.reviews.filter(
+                          (r) => r.lessonId === l.id,
+                        );
+                        const recalled = reviews.reduce(
+                          (n, r) => n + r.repetitions,
+                          0,
+                        );
+                        return (
+                          <div key={l.id} className="mastery-row">
+                            <strong>
+                              {i + 1}. {l.skill}
+                            </strong>
+                            <span
+                              className={`status-chip ${mark?.finishedAt ? "read" : mark ? "reading" : ""}`}
+                            >
+                              <BookOpen size={12} />
+                              {mark?.finishedAt
+                                ? "Lu"
+                                : mark
+                                  ? "En lecture"
+                                  : "Non lu"}
+                            </span>
+                            <span
+                              className={`status-chip ${practiced ? "practiced" : ""}`}
+                            >
+                              <Target size={12} /> Pratique {practiced}/3
+                            </span>
+                            <span
+                              className={`status-chip ${recalled ? "reviewed" : ""}`}
+                            >
+                              <RotateCcw size={12} />
+                              {recalled
+                                ? `${recalled} rappel${recalled > 1 ? "s" : ""}`
+                                : "Pas encore révisé"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
                   <div className="progress-cards">
                     <Stat
                       icon={<BookOpen size={22} />}
@@ -1357,7 +1646,9 @@ export default function LearningApp() {
                 key={id}
                 aria-current={view === id ? "page" : undefined}
                 className={
-                  view === id || (view === "course" && id === "subjects")
+                  view === id ||
+                  ((view === "course" || view === "chapter") &&
+                    id === "subjects")
                     ? "active"
                     : ""
                 }
@@ -1408,6 +1699,24 @@ export default function LearningApp() {
               ],
             }))
           }
+        />
+      )}
+      {practiceOpen && practiceLesson && (
+        <PracticeRunner
+          course={course}
+          lesson={practiceLesson}
+          level={practiceOpen.level}
+          aiReady={aiReady}
+          close={() => setPracticeOpen(null)}
+          done={(solid, total) => {
+            savePractice(practiceLesson.id, practiceOpen.level, solid, total);
+            setPracticeOpen(null);
+            setToast(
+              solid === total
+                ? `Niveau ${practiceOpen.level} réussi : ${solid}/${total}.`
+                : `Niveau ${practiceOpen.level} enregistré : ${solid}/${total}. Relis le cours puis réessaie.`,
+            );
+          }}
         />
       )}
       {toast && (
