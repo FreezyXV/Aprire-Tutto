@@ -112,7 +112,7 @@ test("AI grading returns one verdict per answer and rejects incomplete output", 
     async (_url, init) => {
       const body = JSON.parse(String(init?.body));
       assert.equal(body.response_format.type, "json_object");
-      assert.equal(body.max_tokens, 4000);
+      assert.equal(body.max_tokens, 8000);
       return Response.json({
         choices: [
           {

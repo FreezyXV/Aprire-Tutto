@@ -13,7 +13,14 @@ const searchResultSchema = sourceSchema.extend({
   authority: z.number().default(-1),
   date: z.string().nullable().optional(),
 });
-const model = "deepseek-v4-pro";
+// Measured live (Nov 2026): Pro writes ~60 tokens/s, so a 4-lesson course
+// (~14k tokens) takes 3-5 min and exceeds the function limit. Flash writes
+// the same course in ~80 s. Pro stays for judging answers and tutoring.
+const models = {
+  course: "deepseek-flash",
+  tutor: "deepseek-v4-pro",
+  grade: "deepseek-v4-pro",
+} as const;
 export async function deepseek(
   path: string,
   body: unknown,
@@ -199,13 +206,15 @@ export async function runLearning(
   const raw = await deepseek(
     "/chat/completions",
     {
-      model,
+      model: models[input.action],
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      reasoning_effort: input.action === "course" ? "max" : "high",
-      max_tokens: input.action === "course" ? 16000 : 4000,
+      reasoning_effort: "high",
+      // Reasoning tokens count toward the limit: observed up to ~3,000 for
+      // a 3-answer correction, so 8,000 keeps room for the visible answer.
+      max_tokens: input.action === "course" ? 24000 : 8000,
       ...(input.action !== "tutor"
         ? { response_format: { type: "json_object" } }
         : {}),
@@ -214,7 +223,14 @@ export async function runLearning(
     fetcher,
   );
   const content = readCompletion(raw);
-  if (input.action === "tutor") return { answer: content };
+  if (input.action === "tutor")
+    return {
+      // The UI shows plain text: drop Markdown emphasis and headings.
+      answer: content
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/^#{1,6}\s+/gm, "")
+        .trim(),
+    };
   if (input.action === "grade") {
     let graded: unknown;
     try {

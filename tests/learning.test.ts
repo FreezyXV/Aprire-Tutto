@@ -127,9 +127,9 @@ test("Generated courses only retain sources returned by research and receive uni
           authority: 4,
         })),
       });
-    assert.equal(body.model, "deepseek-v4-pro");
-    assert.equal(body.reasoning_effort, "max");
-    assert.equal(body.max_tokens, 16000);
+    assert.equal(body.model, "deepseek-flash");
+    assert.equal(body.reasoning_effort, "high");
+    assert.equal(body.max_tokens, 24000);
     return Response.json({
       choices: [
         {
