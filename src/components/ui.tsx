@@ -9,7 +9,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
           d="M5 39V18a15 15 0 0 1 30 0v21h-8V18a7 7 0 0 0-14 0v21Z"
           fill="currentColor"
         />
-        <path d="m21 22 14 9-14 8Z" fill="#e58f86" />
+        <path d="m21 22 14 9-14 8Z" fill="#f0a868" />
       </svg>
       {!compact && (
         <span>
