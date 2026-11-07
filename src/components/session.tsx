@@ -22,7 +22,12 @@ import type {
   SessionDraft,
 } from "@/lib/types";
 import { stages } from "@/lib/learning";
-import { gradeCriteria, gradePrompt, type PromptGrade } from "@/lib/grading";
+import {
+  gradeCriteria,
+  gradePrompt,
+  normalize,
+  type PromptGrade,
+} from "@/lib/grading";
 import { callAi } from "@/lib/ai-client";
 import { AnswerFeedback } from "./writing-feedback";
 import { Pill } from "./ui";
@@ -204,6 +209,15 @@ export function LearningSession({
           lesson.mission.rubric[i] ?? "",
         ]
       ).filter(Boolean),
+      ...(() => {
+        const check = missionChecks?.[i];
+        const mistake = check?.avoid?.find((a) =>
+          a.patterns.some((p) =>
+            new RegExp(p, "i").test(normalize(writing[i] ?? "")),
+          ),
+        );
+        return mistake ? { alert: mistake.message.slice(0, 300) } : {};
+      })(),
     }));
   const reflectionModel = [lesson.takeaway, ...lesson.cards.map((c) => c.back)]
     .join(" ")
@@ -217,6 +231,28 @@ export function LearningSession({
       criteria: (lesson.keyIdeas ?? []).map((k) => k.label),
     },
   ];
+  const reflectionGrade = (text: string): PromptGrade | null => {
+    if (!lesson.keyIdeas) return null;
+    const ideas = gradeCriteria(text, lesson.keyIdeas);
+    const met = ideas.filter((c) => c.met).length;
+    return {
+      verdict: !text.trim()
+        ? "empty"
+        : met === ideas.length
+          ? "solid"
+          : met === 0
+            ? "revise"
+            : "partial",
+      criteria: ideas,
+      warnings: [],
+      model: reflectionModel,
+    };
+  };
+  /**
+   * Token-saving arbitration: reuse verdicts for unchanged answers, settle
+   * empty answers and answers the grid fully validates locally, and send
+   * only the remaining (doubtful) answers to the AI.
+   */
   async function arbitrate(key: "mission" | "reflection") {
     const d = draftRef.current;
     const answers =
@@ -224,6 +260,54 @@ export function LearningSession({
         ? missionPrompts.map((_, i) => d.writing[i] ?? "")
         : [d.reflection];
     if (!aiReady) return;
+    const previous = d.aiGrades?.[key];
+    const offline =
+      key === "mission"
+        ? offlineGrades(answers)
+        : [reflectionGrade(answers[0])];
+    const results: (AiGrade | null)[] = answers.map((a, i) => {
+      if (previous && previous.answers[i] === a && previous.items[i])
+        return previous.items[i];
+      if (!a.trim())
+        return {
+          verdict: "revise",
+          feedback:
+            "Pas encore de réponse : écris-la, puis redemande la correction.",
+          improved: "",
+          by: "grid",
+        };
+      if (offline[i]?.verdict === "solid")
+        return {
+          verdict: "solid",
+          feedback:
+            "Toutes les idées clés attendues sont présentes : réponse validée sans appel à l’IA.",
+          improved: "",
+          by: "grid",
+        };
+      return null;
+    });
+    const save = (items: AiGrade[]) => {
+      const latest = draftRef.current;
+      const next = {
+        ...latest,
+        aiGrades: {
+          ...latest.aiGrades,
+          [key]: { answers, items, at: new Date().toISOString() },
+        },
+      };
+      update(
+        key === "mission"
+          ? { ...next, rubric: officialSolid(latest.writing, next) }
+          : next,
+      );
+    };
+    const toAsk = results.flatMap((r, i) => (r ? [] : [i]));
+    if (toAsk.length === 0) {
+      save(results as AiGrade[]);
+      return;
+    }
+    const allItems =
+      key === "mission" ? missionItems(answers) : reflectionItems(answers[0]);
     setAiPending(key);
     setAiNotice("");
     try {
@@ -235,10 +319,7 @@ export function LearningSession({
             ? lesson.mission.context
             : lesson.subtitle
           ).slice(0, 3000),
-          items:
-            key === "mission"
-              ? missionItems(answers)
-              : reflectionItems(answers[0]),
+          items: toAsk.map((i) => allItems[i]),
         },
         () =>
           setAiNotice(
@@ -246,19 +327,10 @@ export function LearningSession({
           ),
       );
       setAiNotice("");
-      const latest = draftRef.current;
-      const next = {
-        ...latest,
-        aiGrades: {
-          ...latest.aiGrades,
-          [key]: { answers, items: b.items, at: new Date().toISOString() },
-        },
-      };
-      update(
-        key === "mission"
-          ? { ...next, rubric: officialSolid(latest.writing, next) }
-          : next,
-      );
+      toAsk.forEach((i, k) => {
+        results[i] = b.items[k];
+      });
+      save(results as AiGrade[]);
     } catch (e) {
       setAiNotice(
         `${e instanceof Error && e.message ? e.message : "Correction IA indisponible."} ${
@@ -281,10 +353,15 @@ export function LearningSession({
       return;
     }
     if (gradable && !revealed) {
-      change({
+      const corrected: SessionDraft = {
+        ...draft,
         revealed: [...draft.revealed, step],
         ...(step === "mission" ? { rubric: officialSolid(draft.writing) } : {}),
-      });
+      };
+      // Arbitration may save synchronously (no AI needed): it must build on
+      // this corrected draft, not on the previous render's.
+      draftRef.current = corrected;
+      update(corrected);
       void arbitrate(step as "mission" | "reflection");
       return;
     }
@@ -583,24 +660,9 @@ export function LearningSession({
             </label>
             {revealed && gradable ? (
               (() => {
-                const ideas = lesson.keyIdeas
-                  ? gradeCriteria(draft.reflection, lesson.keyIdeas)
-                  : [];
+                const offline = reflectionGrade(draft.reflection);
+                const ideas = offline?.criteria ?? [];
                 const met = ideas.filter((c) => c.met).length;
-                const offline: PromptGrade | null = lesson.keyIdeas
-                  ? {
-                      verdict: !draft.reflection.trim()
-                        ? "empty"
-                        : met === ideas.length
-                          ? "solid"
-                          : met === 0
-                            ? "revise"
-                            : "partial",
-                      criteria: ideas,
-                      warnings: [],
-                      model: reflectionModel,
-                    }
-                  : null;
                 return (
                   <>
                     {lesson.keyIdeas && (
@@ -756,7 +818,7 @@ function CorrectionSummary({
               ? "Correction hors ligne : elle repère les idées clés attendues, sans juger le style. La correction par l’IA s’activera dès que DeepSeek sera connecté."
               : stale
                 ? "Tu as modifié ta réponse : le verdict hors ligne est affiché. Redemande l’avis de l’IA pour un verdict définitif."
-                : "Verdict de l’IA : il fait foi. Tu peux encore améliorer ta réponse."}
+                : "Verdict final : l’IA a tranché les réponses douteuses, la grille a validé les autres. Tu peux encore améliorer ta réponse."}
       </p>
       {notice && <p className="ai-notice">{notice}</p>}
       {aiReady && stale && !pending && (

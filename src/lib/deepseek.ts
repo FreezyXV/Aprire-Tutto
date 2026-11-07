@@ -4,6 +4,7 @@ import {
   courseSchema,
   gradeResultSchema,
   learnRequestSchema,
+  lessonSchema,
   sourceSchema,
 } from "./validation";
 type LearnRequest = z.infer<typeof learnRequestSchema>;
@@ -13,13 +14,15 @@ const searchResultSchema = sourceSchema.extend({
   authority: z.number().default(-1),
   date: z.string().nullable().optional(),
 });
-// Measured live (Nov 2026): Pro writes ~60 tokens/s, so a 4-lesson course
-// (~14k tokens) takes 3-5 min and exceeds the function limit. Flash writes
-// the same course in ~80 s. Pro stays for judging answers and tutoring.
-const models = {
-  course: "deepseek-flash",
-  tutor: "deepseek-v4-pro",
-  grade: "deepseek-v4-pro",
+// Measured on the real API (Nov 2026), 9 answers with known verdicts:
+// - grading: Flash/high 9/9 correct, 4.8k output tokens, 12 s;
+//   Pro/high 8/9, 7.5k tokens, 47 s. Flash is also the cheaper model.
+// - tutor: Flash/low ~400 tokens in 4 s, same quality as Pro/high (1.4k, 25 s).
+// - course: Pro is too slow (~60 tokens/s for ~15k tokens); Flash ~80-100 s.
+const settings = {
+  course: { model: "deepseek-flash", effort: "high", maxTokens: 24000 },
+  grade: { model: "deepseek-flash", effort: "high", maxTokens: 8000 },
+  tutor: { model: "deepseek-flash", effort: "low", maxTokens: 4000 },
 } as const;
 export async function deepseek(
   path: string,
@@ -184,7 +187,7 @@ export async function runLearning(
       references: sources,
     });
   } else if (input.action === "grade") {
-    system += ` Tu corriges des réponses écrites d’un apprenant. Pour chaque item, compare la réponse à la question, aux critères et à la réponse modèle (qui n’est qu’un exemple : une autre formulation juste est valable). Verdict : "solid" si la réponse est juste et couvre les critères, "partial" si elle est juste mais incomplète ou imprécise, "revise" si elle est fausse, hors sujet ou vide. feedback : 2 à 4 phrases en tutoyant, ce qui est juste puis ce qui manque ou est faux, concrètement. improved : la réponse de l’apprenant réécrite correctement en gardant ses idées (vide si la réponse est vide). Réponds uniquement en JSON : {"items":[{"verdict":"solid|partial|revise","feedback":"…","improved":"…"}]}, un item par question, dans l’ordre. Pas de Markdown.`;
+    system += ` Tu corriges des réponses écrites d’un apprenant. Pour chaque item, compare la réponse à la question, aux critères et à la réponse modèle (qui n’est qu’un exemple : une autre formulation juste est valable). Verdict : "solid" si la réponse est juste et couvre les critères, "partial" si elle est juste mais incomplète ou imprécise, "revise" si elle est fausse, hors sujet, vide, ou si elle commet l’erreur décrite dans "alert" (vérifie d’abord que l’alerte est fondée). feedback : 2 phrases maximum en tutoyant, ce qui est juste puis ce qui manque ou est faux, concrètement. improved : la réponse de l’apprenant réécrite correctement en gardant ses idées, en une ou deux phrases ; chaîne vide si le verdict est "solid" ou si la réponse est vide. Réponds uniquement en JSON : {"items":[{"verdict":"solid|partial|revise","feedback":"…","improved":"…"}]}, un item par question, dans l’ordre. Pas de Markdown.`;
     user = JSON.stringify({
       exercice: input.title,
       contexte: input.context,
@@ -206,15 +209,14 @@ export async function runLearning(
   const raw = await deepseek(
     "/chat/completions",
     {
-      model: models[input.action],
+      model: settings[input.action].model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      reasoning_effort: "high",
-      // Reasoning tokens count toward the limit: observed up to ~3,000 for
-      // a 3-answer correction, so 8,000 keeps room for the visible answer.
-      max_tokens: input.action === "course" ? 24000 : 8000,
+      reasoning_effort: settings[input.action].effort,
+      // Reasoning tokens count toward this limit.
+      max_tokens: settings[input.action].maxTokens,
       ...(input.action !== "tutor"
         ? { response_format: { type: "json_object" } }
         : {}),
@@ -252,13 +254,12 @@ export async function runLearning(
       "Le parcours reçu est mal formé. Il n’a pas été enregistré.",
     );
   }
-  const parsed = courseSchema.safeParse(object);
-  if (!parsed.success)
+  const course = salvageCourse(object);
+  if (!course)
     throw new AppError(
       502,
       "Le parcours reçu est incomplet. Essaie un sujet plus ciblé.",
     );
-  const course = parsed.data;
   const verified = course.sources.filter((s) =>
     sources.some((r) => r.url === s.url),
   );
@@ -280,4 +281,34 @@ export async function runLearning(
       })),
     },
   };
+}
+
+/**
+ * A generated course is paid for once it arrives: keep every valid lesson
+ * instead of rejecting the whole course for one faulty field. IDs and the
+ * display enums are assigned here, so model mistakes on them never matter.
+ */
+export function salvageCourse(object: unknown) {
+  if (!object || typeof object !== "object") return null;
+  const raw = object as Record<string, unknown>;
+  const lessons = (Array.isArray(raw.lessons) ? raw.lessons : [])
+    .map((l, i) =>
+      lessonSchema.safeParse(
+        l && typeof l === "object" ? { ...l, id: `lesson-${i}` } : l,
+      ),
+    )
+    .flatMap((r) => (r.success ? [r.data] : []));
+  if (lessons.length === 0) return null;
+  const parsed = courseSchema.safeParse({
+    ...raw,
+    id: "generated",
+    color: ["olive", "sage", "lavender", "peach"].includes(String(raw.color))
+      ? raw.color
+      : "peach",
+    icon: ["compass", "code", "globe"].includes(String(raw.icon))
+      ? raw.icon
+      : "compass",
+    lessons,
+  });
+  return parsed.success ? parsed.data : null;
 }

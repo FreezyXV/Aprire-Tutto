@@ -84,7 +84,9 @@ const session = z
         z.enum(["mission", "reflection"]),
         z.object({
           answers: z.array(z.string().max(12000)).max(3),
-          items: z.array(aiGradeSchema).max(3),
+          items: z
+            .array(aiGradeSchema.extend({ by: z.literal("grid").optional() }))
+            .max(3),
           at: date,
         }),
       )
@@ -178,6 +180,8 @@ export const learnRequestSchema = z.discriminatedUnion("action", [
           answer: z.string().max(3000),
           model: z.string().max(2000),
           criteria: z.array(z.string().max(300)).max(6),
+          /** Typical mistake spotted by the offline grid, for the AI to confirm. */
+          alert: z.string().max(300).optional(),
         }),
       )
       .min(1)
