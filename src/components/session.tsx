@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import type { Course, Lesson, Question, SessionDraft } from "@/lib/types";
 import { stages } from "@/lib/learning";
+import { gradeCriteria, gradePrompt, type PromptGrade } from "@/lib/grading";
+import { authHeaders } from "@/lib/client";
+import { AnswerFeedback } from "./writing-feedback";
 import { Pill } from "./ui";
 const labels: Record<string, string> = {
   recall: "Réactiver",
@@ -88,13 +91,15 @@ export function Choice({
       </div>
       {revealed && (
         <div
-          className={`feedback ${selected === question.answer ? "positive" : "neutral"}`}
+          className={`feedback ${selected === question.answer ? "positive" : selected === -1 ? "neutral" : "wrong"}`}
           role="status"
         >
           <strong>
             {selected === question.answer
-              ? "Oui, c’est ça."
-              : "Une nuance à retenir."}
+              ? "Bonne réponse."
+              : selected === -1
+                ? "Voici la réponse."
+                : "Pas tout à fait. Voici pourquoi :"}
           </strong>
           <p>{question.explanation}</p>
         </div>
@@ -140,9 +145,144 @@ export function LearningSession({
   }, [draft.step]);
   const change = (patch: Partial<SessionDraft>) =>
     update({ ...draft, ...patch });
+  const missionPrompts =
+    draft.minutes === 10
+      ? lesson.mission.prompts.slice(0, 1)
+      : lesson.mission.prompts;
+  const missionChecks = lesson.mission.checks;
+  // Latest draft, so async AI results never overwrite newer typing.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const [aiReady, setAiReady] = useState(false);
+  const [aiPending, setAiPending] = useState<string | null>(null);
+  const [aiNotice, setAiNotice] = useState("");
+  useEffect(() => {
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((b) => setAiReady(!!b.ai))
+      .catch(() => setAiReady(false));
+  }, []);
+  const offlineGrades = (writing: string[]) =>
+    missionPrompts.map((_, i) =>
+      missionChecks?.[i]
+        ? gradePrompt(writing[i] ?? "", missionChecks[i])
+        : null,
+    );
+  /** AI verdict for answer i if it judged exactly this text. */
+  const freshAi = (
+    key: "mission" | "reflection",
+    answers: string[],
+    i: number,
+    d: SessionDraft = draft,
+  ) => {
+    const g = d.aiGrades?.[key];
+    return g && g.answers[i] === (answers[i] ?? "") ? g.items[i] : undefined;
+  };
+  /** Official verdicts: AI arbitrates, the offline grid fills in. */
+  const officialSolid = (writing: string[], d: SessionDraft = draft) =>
+    missionPrompts.flatMap((_, i) => {
+      const ai = freshAi("mission", writing, i, d);
+      const v = ai?.verdict ?? offlineGrades(writing)[i]?.verdict;
+      return v === "solid" ? [i] : [];
+    });
+  const missionItems = (writing: string[]) =>
+    missionPrompts.map((p, i) => ({
+      prompt: p,
+      answer: (writing[i] ?? "").slice(0, 3000),
+      model: (missionChecks?.[i]?.model ?? lesson.mission.example).slice(
+        0,
+        2000,
+      ),
+      criteria: (
+        missionChecks?.[i]?.criteria.map((c) => c.label) ?? [
+          lesson.mission.rubric[i] ?? "",
+        ]
+      ).filter(Boolean),
+    }));
+  const reflectionModel = [lesson.takeaway, ...lesson.cards.map((c) => c.back)]
+    .join(" ")
+    .slice(0, 2000);
+  const reflectionItems = (text: string) => [
+    {
+      prompt:
+        "Explique la notion à quelqu’un qui découvre le sujet, puis donne une situation où l’utiliser.",
+      answer: text.slice(0, 3000),
+      model: reflectionModel,
+      criteria: (lesson.keyIdeas ?? []).map((k) => k.label),
+    },
+  ];
+  async function arbitrate(key: "mission" | "reflection") {
+    const d = draftRef.current;
+    const answers =
+      key === "mission"
+        ? missionPrompts.map((_, i) => d.writing[i] ?? "")
+        : [d.reflection];
+    if (!aiReady) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setAiNotice("Hors connexion : la correction hors ligne fait foi.");
+      return;
+    }
+    setAiPending(key);
+    setAiNotice("");
+    try {
+      const r = await fetch("/api/learn", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeaders()),
+        },
+        body: JSON.stringify({
+          action: "grade",
+          title: key === "mission" ? lesson.mission.title : lesson.title,
+          context: (key === "mission"
+            ? lesson.mission.context
+            : lesson.subtitle
+          ).slice(0, 3000),
+          items:
+            key === "mission"
+              ? missionItems(answers)
+              : reflectionItems(answers[0]),
+          requestId: crypto.randomUUID(),
+        }),
+      });
+      const b = await r.json();
+      if (!r.ok) throw new Error(b.error);
+      const latest = draftRef.current;
+      const next = {
+        ...latest,
+        aiGrades: {
+          ...latest.aiGrades,
+          [key]: { answers, items: b.items, at: new Date().toISOString() },
+        },
+      };
+      update(
+        key === "mission"
+          ? { ...next, rubric: officialSolid(latest.writing, next) }
+          : next,
+      );
+    } catch (e) {
+      setAiNotice(
+        `${e instanceof Error && e.message ? e.message : "Correction IA indisponible."} La correction hors ligne fait foi.`,
+      );
+    } finally {
+      setAiPending(null);
+    }
+  }
+  const gradable =
+    (step === "mission" && (!!missionChecks || aiReady)) ||
+    (step === "reflection" && (!!lesson.keyIdeas || aiReady));
+  const toCorrect = (isQuestion || gradable) && !revealed;
   const next = () => {
     if (isQuestion && !revealed) {
       change({ revealed: [...draft.revealed, step] });
+      return;
+    }
+    if (gradable && !revealed) {
+      change({
+        revealed: [...draft.revealed, step],
+        ...(step === "mission" ? { rubric: officialSolid(draft.writing) } : {}),
+      });
+      void arbitrate(step as "mission" | "reflection");
       return;
     }
     if (step === "summary") {
@@ -151,11 +291,22 @@ export function LearningSession({
     }
     change({ step: draft.step + 1 });
   };
-  const missionPrompts =
-    draft.minutes === 10
-      ? lesson.mission.prompts.slice(0, 1)
-      : lesson.mission.prompts;
-  const canNext = !isQuestion || answered || revealed;
+  const canNext = isQuestion
+    ? answered || revealed
+    : !gradable ||
+      revealed ||
+      (step === "mission"
+        ? draft.writing.some((w) => w?.trim())
+        : !!draft.reflection.trim());
+  const grades =
+    step === "mission" && revealed ? offlineGrades(draft.writing) : [];
+  const missionAnswers = missionPrompts.map((_, i) => draft.writing[i] ?? "");
+  const staleAi = (key: "mission" | "reflection") => {
+    const g = draft.aiGrades?.[key];
+    const now = key === "mission" ? missionAnswers : [draft.reflection];
+    return !g || now.some((a, i) => g.answers[i] !== a);
+  };
+  const solidCount = draft.rubric.length;
   const correct = [
     "check",
     ...(draft.minutes >= 20 ? ["transfer"] : []),
@@ -257,7 +408,7 @@ export function LearningSession({
               ))}
             </div>
             <div className="worked-example">
-              <span className="eyebrow">UN EXEMPLE CONCRET</span>
+              <span className="eyebrow">Un exemple concret</span>
               <p>{lesson.example.context}</p>
               <div className="example-before">{lesson.example.before}</div>
               <ArrowRight className="example-arrow" size={20} />
@@ -297,51 +448,114 @@ export function LearningSession({
                   onChange={(e) => {
                     const w = [...draft.writing];
                     w[i] = e.target.value;
-                    change({ writing: w });
+                    change({
+                      writing: w,
+                      ...(revealed ? { rubric: officialSolid(w) } : {}),
+                    });
                   }}
                 />
+                {revealed && (
+                  <AnswerFeedback
+                    ai={freshAi("mission", missionAnswers, i)}
+                    offline={grades[i]}
+                    model={
+                      missionChecks?.[i]?.model ??
+                      (i === 0 ? lesson.mission.example : "")
+                    }
+                    pending={aiPending === "mission"}
+                  />
+                )}
               </label>
             ))}
-            <button
-              className="text-button"
-              onClick={() => setShowExample(!showExample)}
-            >
-              <Lightbulb size={16} />
-              {showExample
-                ? "Masquer la piste de réponse"
-                : "Voir une piste de réponse"}
-            </button>
-            {showExample && (
-              <div className="feedback neutral">
-                <strong>Une piste, parmi d’autres</strong>
-                <p>{lesson.mission.example}</p>
-              </div>
+            {gradable ? (
+              !revealed ? (
+                <>
+                  <button
+                    className="text-button"
+                    onClick={() => setShowExample(!showExample)}
+                  >
+                    <Lightbulb size={16} />
+                    {showExample ? "Masquer l’indice" : "Besoin d’un indice ?"}
+                  </button>
+                  {showExample && (
+                    <div className="feedback neutral">
+                      <strong>Une bonne réponse contient :</strong>
+                      <ul className="hint-list">
+                        {missionPrompts.map((p, i) => (
+                          <li key={p}>
+                            <b>{i + 1}.</b>{" "}
+                            {missionChecks?.[i]
+                              ? missionChecks[i].criteria
+                                  .map((c) => c.label.toLowerCase())
+                                  .join(" · ")
+                              : lesson.mission.rubric[i]}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <p className="correction-note">
+                    Écris tes réponses, puis demande la correction :{" "}
+                    {aiReady
+                      ? "l’IA juge chaque réponse et explique son verdict."
+                      : "chaque réponse reçoit un verdict et une réponse modèle."}
+                  </p>
+                </>
+              ) : (
+                <CorrectionSummary
+                  solid={solidCount}
+                  total={missionPrompts.length}
+                  aiReady={aiReady}
+                  pending={aiPending === "mission"}
+                  stale={staleAi("mission")}
+                  notice={aiNotice}
+                  retry={() => void arbitrate("mission")}
+                />
+              )
+            ) : (
+              <>
+                <button
+                  className="text-button"
+                  onClick={() => setShowExample(!showExample)}
+                >
+                  <Lightbulb size={16} />
+                  {showExample
+                    ? "Masquer la piste de réponse"
+                    : "Voir une piste de réponse"}
+                </button>
+                {showExample && (
+                  <div className="feedback neutral">
+                    <strong>Une piste, parmi d’autres</strong>
+                    <p>{lesson.mission.example}</p>
+                  </div>
+                )}
+                <div className="self-review">
+                  <h3>Relis ton travail avec ces critères</h3>
+                  <p>
+                    Une autoévaluation pour guider ta réflexion, sans note
+                    automatique.
+                  </p>
+                  {lesson.mission.rubric
+                    .slice(0, draft.minutes === 10 ? 1 : 3)
+                    .map((r, i) => (
+                      <label key={r}>
+                        <input
+                          type="checkbox"
+                          checked={draft.rubric.includes(i)}
+                          onChange={() =>
+                            change({
+                              rubric: draft.rubric.includes(i)
+                                ? draft.rubric.filter((x) => x !== i)
+                                : [...draft.rubric, i],
+                            })
+                          }
+                        />
+                        {r}
+                      </label>
+                    ))}
+                </div>
+              </>
             )}
-            <div className="self-review">
-              <h3>Relis ton travail avec ces critères</h3>
-              <p>
-                Une autoévaluation pour guider ta réflexion, sans note
-                automatique.
-              </p>
-              {lesson.mission.rubric
-                .slice(0, draft.minutes === 10 ? 1 : 3)
-                .map((r, i) => (
-                  <label key={r}>
-                    <input
-                      type="checkbox"
-                      checked={draft.rubric.includes(i)}
-                      onChange={() =>
-                        change({
-                          rubric: draft.rubric.includes(i)
-                            ? draft.rubric.filter((x) => x !== i)
-                            : [...draft.rubric, i],
-                        })
-                      }
-                    />
-                    {r}
-                  </label>
-                ))}
-            </div>
             <button className="text-button" onClick={tutor}>
               <MessageCircle size={16} /> Demander un retour au tuteur
             </button>
@@ -363,13 +577,58 @@ export function LearningSession({
                 placeholder="J’ai compris que… La prochaine fois que…"
               />
             </label>
-            <div className="takeaway">
-              <Lightbulb size={22} />
-              <p>
-                Reformuler permet de repérer ce que l’on comprend vraiment et ce
-                qui reste à éclaircir.
-              </p>
-            </div>
+            {revealed && gradable ? (
+              (() => {
+                const ideas = lesson.keyIdeas
+                  ? gradeCriteria(draft.reflection, lesson.keyIdeas)
+                  : [];
+                const met = ideas.filter((c) => c.met).length;
+                const offline: PromptGrade | null = lesson.keyIdeas
+                  ? {
+                      verdict: !draft.reflection.trim()
+                        ? "empty"
+                        : met === ideas.length
+                          ? "solid"
+                          : met === 0
+                            ? "revise"
+                            : "partial",
+                      criteria: ideas,
+                      warnings: [],
+                      model: reflectionModel,
+                    }
+                  : null;
+                return (
+                  <>
+                    {lesson.keyIdeas && (
+                      <p className="ideas-count">
+                        {met}/{ideas.length} idées clés retrouvées
+                      </p>
+                    )}
+                    <AnswerFeedback
+                      ai={freshAi("reflection", [draft.reflection], 0)}
+                      offline={offline}
+                      model={reflectionModel}
+                      pending={aiPending === "reflection"}
+                    />
+                    <CorrectionSummary
+                      aiReady={aiReady}
+                      pending={aiPending === "reflection"}
+                      stale={staleAi("reflection")}
+                      notice={aiNotice}
+                      retry={() => void arbitrate("reflection")}
+                    />
+                  </>
+                );
+              })()
+            ) : (
+              <div className="takeaway">
+                <Lightbulb size={22} />
+                <p>
+                  Reformuler permet de repérer ce que l’on comprend vraiment et
+                  ce qui reste à éclaircir.
+                </p>
+              </div>
+            )}
           </>
         )}
         {step === "summary" && (
@@ -387,6 +646,14 @@ export function LearningSession({
                   </strong>
                   <span>questions d’application</span>
                 </div>
+                {missionChecks && draft.minutes >= 10 && (
+                  <div>
+                    <strong>
+                      {solidCount}/{missionPrompts.length}
+                    </strong>
+                    <span>réponses écrites solides</span>
+                  </div>
+                )}
                 <div>
                   <strong>{draft.minutes} min</strong>
                   <span>format choisi</span>
@@ -427,8 +694,12 @@ export function LearningSession({
           <button className="button primary" disabled={!canNext} onClick={next}>
             {step === "summary"
               ? "Terminer ma séance"
-              : isQuestion && !revealed
-                ? "Vérifier ma réponse"
+              : toCorrect
+                ? isQuestion
+                  ? "Vérifier ma réponse"
+                  : step === "mission"
+                    ? "Corriger mes réponses"
+                    : "Vérifier ma reformulation"
                 : "Continuer"}
             <ArrowRight size={18} />
           </button>
@@ -439,6 +710,49 @@ export function LearningSession({
             : "Tu peux faire une pause et reprendre exactement ici."}
         </p>
       </main>
+    </div>
+  );
+}
+
+function CorrectionSummary({
+  solid,
+  total,
+  aiReady,
+  pending,
+  stale,
+  notice,
+  retry,
+}: {
+  solid?: number;
+  total?: number;
+  aiReady: boolean;
+  pending: boolean;
+  stale: boolean;
+  notice: string;
+  retry: () => void;
+}) {
+  return (
+    <div className="correction-summary" role="status">
+      {total !== undefined && (
+        <strong>
+          {solid}/{total} · {solid! > 1 ? "réponses solides" : "réponse solide"}
+        </strong>
+      )}
+      <p>
+        {pending
+          ? "L’IA vérifie tes réponses. Le verdict hors ligne s’affiche en attendant."
+          : !aiReady
+            ? "Correction hors ligne : elle repère les idées clés attendues, sans juger le style. La correction par l’IA s’activera dès que DeepSeek sera connecté."
+            : stale
+              ? "Tu as modifié ta réponse : le verdict hors ligne est affiché. Redemande l’avis de l’IA pour un verdict définitif."
+              : "Verdict de l’IA : il fait foi. Tu peux encore améliorer ta réponse."}
+      </p>
+      {notice && <p className="ai-notice">{notice}</p>}
+      {aiReady && stale && !pending && (
+        <button className="button secondary" onClick={retry}>
+          <Sparkles size={16} /> Faire corriger par l’IA
+        </button>
+      )}
     </div>
   );
 }

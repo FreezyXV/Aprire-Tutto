@@ -21,7 +21,8 @@ export async function POST(request: Request) {
       );
     const { data, error } = await client.rpc("reserve_ai", {
       request_id: parsed.data.requestId,
-      kind: parsed.data.action,
+      // Grading shares the tutor allowance (same size limits).
+      kind: parsed.data.action === "course" ? "course" : "tutor",
     });
     if (error)
       throw new AppError(

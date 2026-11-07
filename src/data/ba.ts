@@ -1,4 +1,5 @@
 import type { Course, Lesson, Question } from "@/lib/types";
+import { baGrading } from "./ba-grading";
 const q = (
   prompt: string,
   options: string[],
@@ -672,12 +673,16 @@ const lessons: Lesson[] = [
 export const baCourse: Course = {
   id: "business-analysis",
   title: "Business Analysis",
-  eyebrow: "TON PREMIER TERRAIN D’EXPLORATION",
+  eyebrow: "Ton premier terrain d’exploration",
   color: "olive",
   icon: "compass",
   description:
     "Du besoin à la valeur. Construis les réflexes du métier, une situation concrète à la fois.",
-  lessons,
+  lessons: lessons.map((l) => ({
+    ...l,
+    mission: { ...l.mission, checks: baGrading[l.id]?.checks },
+    keyIdeas: baGrading[l.id]?.keyIdeas,
+  })),
   sources: [
     {
       title: "IIBA · The Business Analysis Standard",
