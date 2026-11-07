@@ -31,6 +31,7 @@ import {
 import { callAi } from "@/lib/ai-client";
 import { AnswerFeedback } from "./writing-feedback";
 import { Pill } from "./ui";
+import { Diagram } from "./diagram";
 const labels: Record<string, string> = {
   recall: "Réactiver",
   learn: "Comprendre",
@@ -498,6 +499,20 @@ export function LearningSession({
               <Lightbulb size={23} />
               <p>{lesson.takeaway}</p>
             </div>
+            {(() => {
+              const d = lesson.chapter?.sections.find(
+                (x) => x.diagram,
+              )?.diagram;
+              return d ? (
+                <>
+                  <Diagram diagram={d} />
+                  <p className="muted small-text">
+                    Le chapitre complet, avec ses exemples et ses schémas,
+                    t’attend dans l’espace Cours.
+                  </p>
+                </>
+              ) : null;
+            })()}
             <details className="sources">
               <summary>Explorer les sources de référence</summary>
               {course.sources.map((s) => (

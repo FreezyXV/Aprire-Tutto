@@ -1,6 +1,13 @@
 export type Minutes = 5 | 10 | 20 | 30;
 export type View =
-  "today" | "subjects" | "course" | "reviews" | "progress" | "settings";
+  | "today"
+  | "subjects"
+  | "course"
+  | "chapter"
+  | "practice"
+  | "reviews"
+  | "progress"
+  | "settings";
 export type Question = {
   prompt: string;
   options: string[];
@@ -14,6 +21,77 @@ export type PromptCheck = {
   model: string;
   criteria: Criterion[];
   avoid?: { patterns: string[]; message: string }[];
+};
+export type DiagramTone = "neutral" | "apricot" | "marker" | "sky" | "blush";
+/** Diagrams are data, rendered in HTML/CSS: responsive, selectable, offline. */
+export type Diagram =
+  | {
+      kind: "flow";
+      title: string;
+      steps: { label: string; note?: string; tone?: DiagramTone }[];
+      /** Arrow back from step `from` to step `to` (0-based), e.g. a reopen loop. */
+      loop?: { from: number; to: number; label: string };
+      caption: string;
+    }
+  | {
+      kind: "quadrant";
+      title: string;
+      xAxis: string;
+      yAxis: string;
+      /** Exactly 4 cells: top-left, top-right, bottom-left, bottom-right. */
+      cells: { title: string; text: string; tone?: DiagramTone }[];
+      caption: string;
+    }
+  | {
+      kind: "table";
+      title: string;
+      columns: string[];
+      rows: string[][];
+      caption: string;
+    }
+  | {
+      kind: "lanes";
+      title: string;
+      lanes: string[];
+      steps: { lane: number; label: string; issue?: boolean }[];
+      caption: string;
+    }
+  | {
+      kind: "bridge";
+      title: string;
+      left: { title: string; lines: string[] };
+      center: { title: string; lines: string[] };
+      right: { title: string; lines: string[] };
+      forward: [string, string];
+      backward: [string, string];
+      caption: string;
+    };
+export type Chapter = {
+  objective: string;
+  prerequisites: string[];
+  sections: {
+    heading: string;
+    paragraphs: string[];
+    diagram?: Diagram;
+    keyPoint?: string;
+  }[];
+  workedExample: {
+    title: string;
+    situation: string;
+    steps: { label: string; detail: string }[];
+    outcome: string;
+  };
+  pitfalls: { confusion: string; correction: string; counterExample: string }[];
+  summary: string[];
+  glossary: { term: string; definition: string }[];
+};
+/** One step of the running case study (practice level 3). */
+export type CaseStep = {
+  title: string;
+  context: string;
+  prompts: string[];
+  criteria: string[][];
+  models: string[];
 };
 export type Lesson = {
   id: string;
@@ -38,6 +116,9 @@ export type Lesson = {
   };
   /** Ideas a good reformulation of the lesson should contain. */
   keyIdeas?: Criterion[];
+  /** Reference course for the "Cours" space. */
+  chapter?: Chapter;
+  caseStep?: CaseStep;
   cards: { front: string; back: string }[];
 };
 export type Course = {
@@ -50,6 +131,7 @@ export type Course = {
   lessons: Lesson[];
   sources: Source[];
   generatedAt?: string;
+  caseStudy?: { name: string; pitch: string };
 };
 export type AiGrade = {
   verdict: "solid" | "partial" | "revise";
@@ -112,4 +194,21 @@ export type AppState = {
   exams: { courseId: string; correct: number; total: number; at: string }[];
   goal: string;
   updatedAt: string;
+  /** Reading progress: last section reached, and when the end was reached. */
+  reading?: ReadingMark[];
+  practice?: PracticeResult[];
+};
+export type ReadingMark = {
+  courseId: string;
+  lessonId: string;
+  section: number;
+  finishedAt?: string;
+};
+export type PracticeResult = {
+  courseId: string;
+  lessonId: string;
+  level: 1 | 2 | 3;
+  solid: number;
+  total: number;
+  at: string;
 };

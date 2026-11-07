@@ -21,6 +21,112 @@ const question = z
     explanation: text,
   })
   .refine((q) => q.answer < q.options.length);
+const short = z.string().min(1).max(400);
+const tone = z
+  .enum(["neutral", "apricot", "marker", "sky", "blush"])
+  .optional();
+const box = z.object({
+  title: short,
+  lines: z.array(short).max(5),
+});
+export const diagramSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("flow"),
+    title: short,
+    steps: z
+      .array(z.object({ label: short, note: short.optional(), tone }))
+      .min(2)
+      .max(8),
+    loop: z
+      .object({
+        from: z.number().int().min(0),
+        to: z.number().int().min(0),
+        label: short,
+      })
+      .optional(),
+    caption: text,
+  }),
+  z.object({
+    kind: z.literal("quadrant"),
+    title: short,
+    xAxis: short,
+    yAxis: short,
+    cells: z.array(z.object({ title: short, text: short, tone })).length(4),
+    caption: text,
+  }),
+  z.object({
+    kind: z.literal("table"),
+    title: short,
+    columns: z.array(short).min(2).max(4),
+    rows: z.array(z.array(short).min(2).max(4)).min(1).max(8),
+    caption: text,
+  }),
+  z.object({
+    kind: z.literal("lanes"),
+    title: short,
+    lanes: z.array(short).min(2).max(4),
+    steps: z
+      .array(
+        z.object({
+          lane: z.number().int().min(0).max(3),
+          label: short,
+          issue: z.boolean().optional(),
+        }),
+      )
+      .min(2)
+      .max(8),
+    caption: text,
+  }),
+  z.object({
+    kind: z.literal("bridge"),
+    title: short,
+    left: box,
+    center: box,
+    right: box,
+    forward: z.tuple([short, short]),
+    backward: z.tuple([short, short]),
+    caption: text,
+  }),
+]);
+export const chapterSchema = z.object({
+  objective: text,
+  prerequisites: z.array(short).max(5),
+  sections: z
+    .array(
+      z.object({
+        heading: short,
+        paragraphs: z.array(text).min(1).max(5),
+        diagram: diagramSchema.optional(),
+        keyPoint: text.optional(),
+      }),
+    )
+    .min(2)
+    .max(8),
+  workedExample: z.object({
+    title: short,
+    situation: text,
+    steps: z
+      .array(z.object({ label: short, detail: text }))
+      .min(2)
+      .max(6),
+    outcome: text,
+  }),
+  pitfalls: z
+    .array(
+      z.object({ confusion: text, correction: text, counterExample: text }),
+    )
+    .min(1)
+    .max(5),
+  summary: z.array(text).min(2).max(7),
+  glossary: z.array(z.object({ term: short, definition: text })).max(10),
+});
+const caseStepSchema = z.object({
+  title: short,
+  context: text,
+  prompts: z.array(text).min(1).max(3),
+  criteria: z.array(z.array(short).max(4)).max(3),
+  models: z.array(text).max(3),
+});
 export const lessonSchema = z.object({
   id,
   title: text,
@@ -44,6 +150,8 @@ export const lessonSchema = z.object({
     .array(z.object({ front: text, back: text }))
     .min(1)
     .max(5),
+  chapter: chapterSchema.optional(),
+  caseStep: caseStepSchema.optional(),
 });
 export const sourceSchema = z.object({
   title: text,
@@ -62,6 +170,7 @@ export const courseSchema = z
     lessons: z.array(lessonSchema).min(1).max(20),
     sources: z.array(sourceSchema).min(1).max(10),
     generatedAt: date.optional(),
+    caseStudy: z.object({ name: short, pitch: text }).optional(),
   })
   .refine((c) => new Set(c.lessons.map((l) => l.id)).size === c.lessons.length);
 const writing = z.array(z.string().max(12000)).max(3);
@@ -145,6 +254,30 @@ export const stateSchema = z.object({
     .max(10000),
   goal: z.string().max(2000),
   updatedAt: date,
+  reading: z
+    .array(
+      z.object({
+        courseId: id,
+        lessonId: id,
+        section: z.number().int().min(0).max(20),
+        finishedAt: date.optional(),
+      }),
+    )
+    .max(2000)
+    .optional(),
+  practice: z
+    .array(
+      z.object({
+        courseId: id,
+        lessonId: id,
+        level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+        solid: z.number().int().min(0).max(10),
+        total: z.number().int().min(1).max(10),
+        at: date,
+      }),
+    )
+    .max(10000)
+    .optional(),
 });
 export const learnRequestSchema = z.discriminatedUnion("action", [
   z.object({
@@ -166,6 +299,23 @@ export const learnRequestSchema = z.discriminatedUnion("action", [
       takeaway: z.string().max(3000),
       writing: z.string().max(10000),
       rubric: z.array(z.string().max(1000)).max(6),
+    }),
+    requestId: z.uuid(),
+  }),
+  z.object({
+    action: z.literal("chapter"),
+    topic: z.string().trim().min(2).max(140),
+    lesson: z.object({
+      title: z.string().max(300),
+      subtitle: z.string().max(300),
+      skill: z.string().max(300),
+      paragraphs: z.array(z.string().max(2000)).max(6),
+      takeaway: z.string().max(1000),
+      example: z.object({
+        context: z.string().max(1000),
+        before: z.string().max(1000),
+        after: z.string().max(1000),
+      }),
     }),
     requestId: z.uuid(),
   }),

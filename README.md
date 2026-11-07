@@ -4,6 +4,14 @@ Un espace personnel pour comprendre, pratiquer et retenir. Application web en fr
 
 ## Ce qui fonctionne
 
+- Trois espaces qui partagent le même contenu et la même progression :
+  - **Cours** : un chapitre de référence par leçon, en lecture libre — objectif et prérequis, explication progressive, schémas commentés placés près du texte, exemple entièrement expliqué, confusions fréquentes avec contre-exemples, fiche de synthèse, glossaire et sources. Reprise automatique à la section quittée ; bouton « Mettre en pratique » toujours disponible sans perdre la lecture.
+  - **Pratique** : trois niveaux par chapitre — accompagné (exemple résolu pas à pas, questions avec indice), moins d’aide (exercice rédigé corrigé), autonomie (fil rouge « Maison Lumen » : un dossier BA construit chapitre après chapitre, corrigé par l’IA).
+  - **Révisions** : cartes espacées.
+  - La progression distingue lu, pratiqué (niveaux réussis) et révisé ; l’accueil propose de lire ou pratiquer selon le temps choisi.
+- Schémas générés à partir de données (`src/components/diagram.tsx`) : flux, quadrant, tableau comparatif, couloirs, interface. Rendus en HTML/CSS, ils se réorganisent à la verticale sur iPhone, restent sélectionnables et disposent d’un équivalent texte.
+- Cours BA : 8 chapitres originaux (`src/data/ba-chapters-*.ts`), fondés sur le référentiel privé du propriétaire (non publié, non recopié), l’IIBA, BPMN 2.0 et ISO/IEC 25010. Fil rouge : `src/data/ba-case.ts`.
+- Sujets créés avec l’IA : le chapitre de cours est rédigé à la demande, à la première ouverture, puis conservé (hors connexion compris). Mesuré sur la vraie API (novembre 2026) : 3 chapitres sur 3 valides, 25 à 34 s, 3 800 à 5 800 tokens de sortie, moins d’un centime chacun. Un schéma invalide est écarté sans perdre le chapitre.
 - Choix quotidien de séances de 5, 10, 20 ou 30 minutes, avec des étapes réellement différentes.
 - Premier parcours Business Analysis : 8 leçons originales, BA/MOA/AMOA/MOE, parties prenantes, exigences, processus, priorisation, données et recette.
 - Rappel avant la leçon, exemples commentés, exercices corrigés, productions écrites et test final distinct.

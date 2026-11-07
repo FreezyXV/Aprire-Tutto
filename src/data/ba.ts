@@ -1,5 +1,8 @@
 import type { Course, Lesson, Question } from "@/lib/types";
 import { baGrading } from "./ba-grading";
+import { chaptersPart1 } from "./ba-chapters-1";
+import { chaptersPart2 } from "./ba-chapters-2";
+import { baCase } from "./ba-case";
 const q = (
   prompt: string,
   options: string[],
@@ -682,7 +685,10 @@ export const baCourse: Course = {
     ...l,
     mission: { ...l.mission, checks: baGrading[l.id]?.checks },
     keyIdeas: baGrading[l.id]?.keyIdeas,
+    chapter: chaptersPart1[l.id] ?? chaptersPart2[l.id],
+    caseStep: baCase.steps[l.id],
   })),
+  caseStudy: { name: baCase.name, pitch: baCase.pitch },
   sources: [
     {
       title: "IIBA · The Business Analysis Standard",
@@ -695,6 +701,14 @@ export const baCourse: Course = {
     {
       title: "Scrum Guide · Responsabilités du Product Owner",
       url: "https://scrumguides.org/scrum-guide.html",
+    },
+    {
+      title: "OMG · BPMN 2.0, notation des processus",
+      url: "https://www.omg.org/spec/BPMN/2.0.2/About-BPMN",
+    },
+    {
+      title: "ISO/IEC 25010 · Modèle de qualité des logiciels",
+      url: "https://www.iso.org/standard/78176.html",
     },
   ],
 };
