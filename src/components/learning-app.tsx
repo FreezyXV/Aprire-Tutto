@@ -41,7 +41,8 @@ import {
   scheduleReview,
   scoreSession,
 } from "@/lib/learning";
-import { authHeaders, getSupabase } from "@/lib/client";
+import { getSupabase } from "@/lib/client";
+import { callAi } from "@/lib/ai-client";
 import type { Course, Lesson, Minutes, SessionDraft, View } from "@/lib/types";
 import { Brand, CourseArt, Empty, Modal, Pill, Ring } from "./ui";
 import { SessionOutline } from "./session-outline";
@@ -1540,23 +1541,12 @@ function NewTopic({
     setBusy(true);
     setError("");
     try {
-      const r = await fetch("/api/learn", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
-          action: "course",
-          topic,
-          goal,
-          level,
-          requestId: crypto.randomUUID(),
-        }),
+      const data = await callAi<{ course: Course }>({
+        action: "course",
+        topic,
+        goal,
+        level,
       });
-      const data = await r.json();
-      if (!r.ok)
-        throw new Error(data.error ?? "Le parcours n’a pas pu être créé.");
       created(data.course);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Une erreur est survenue.");
@@ -1641,8 +1631,8 @@ function NewTopic({
         </button>
         {busy && (
           <p className="muted small-text">
-            Cela peut prendre jusqu’à trois minutes. Tu peux garder cette
-            fenêtre ouverte.
+            Environ une à deux minutes. Garde l’app ouverte : l’écran reste
+            allumé pendant la création.
           </p>
         )}
       </form>
@@ -1667,13 +1657,8 @@ function Tutor({
     setBusy(true);
     setError("");
     try {
-      const r = await fetch("/api/learn", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
+      const b = await callAi<{ answer: string }>(
+        {
           action: "tutor",
           question: message,
           context: {
@@ -1682,11 +1667,11 @@ function Tutor({
             writing: writing.join("\n"),
             rubric: lesson.mission.rubric,
           },
-          requestId: crypto.randomUUID(),
-        }),
-      });
-      const b = await r.json();
-      if (!r.ok) throw new Error(b.error);
+        },
+        () =>
+          setError("Patiente quelques secondes, ta question part juste après."),
+      );
+      setError("");
       setAnswer(b.answer);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Le tuteur est indisponible.");
@@ -1699,7 +1684,7 @@ function Tutor({
       <div className="tutor-reference">
         <Lightbulb size={24} />
         <div>
-          <span className="eyebrow">LE REPÈRE DU COURS</span>
+          <span className="eyebrow">Le repère du cours</span>
           <p>{lesson.takeaway}</p>
         </div>
       </div>
@@ -1708,7 +1693,7 @@ function Tutor({
       </p>
       {answer && (
         <div className="tutor-answer">
-          <span className="eyebrow">RETOUR DU TUTEUR · IA</span>
+          <span className="eyebrow">Retour du tuteur · IA</span>
           <p>{answer}</p>
           <small>
             Un retour à examiner, pas une certification de compétence.

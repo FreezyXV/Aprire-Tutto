@@ -3,6 +3,8 @@ export class AppError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Seconds before the same request can be retried (sent as Retry-After). */
+    public retryAfter?: number,
   ) {
     super(message);
   }
@@ -81,10 +83,14 @@ export async function readJson(request: Request, maxBytes = 1000000) {
     throw new AppError(400, "Le contenu reçu est invalide.");
   }
 }
-export function json(value: unknown, status = 200) {
+export function json(
+  value: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+) {
   return Response.json(value, {
     status,
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store", ...extraHeaders },
   });
 }
 export function errorResponse(error: unknown) {
@@ -96,5 +102,8 @@ export function errorResponse(error: unknown) {
           : "Le service est momentanément indisponible. Ta progression locale est conservée.",
     },
     error instanceof AppError ? error.status : 500,
+    error instanceof AppError && error.retryAfter
+      ? { "Retry-After": String(error.retryAfter) }
+      : {},
   );
 }
