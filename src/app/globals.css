@@ -5544,3 +5544,27 @@ h3 {
   font-size: 13px;
   color: var(--muted);
 }
+.mastery-course {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+.mastery-course summary {
+  cursor: pointer;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 15.5px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  align-items: center;
+}
+.mastery-course summary span {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.mastery-course .mastery-list {
+  margin-top: 10px;
+}
