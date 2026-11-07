@@ -33,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { baCourse } from "@/data/ba";
+import { builtInCourses } from "@/data/courses";
 import {
   allowedMinutes,
   completedLessonIds,
@@ -110,7 +111,7 @@ export default function LearningApp() {
       .then((b) => setAiReady(!!b.ai))
       .catch(() => setAiReady(false));
   }, []);
-  const courses = [baCourse, ...state.courses];
+  const courses = [...builtInCourses, ...state.courses];
   const course = courses.find((c) => c.id === courseId) ?? baCourse;
   const done = completedLessonIds(state, course.id);
   const nextLesson =
@@ -1242,54 +1243,75 @@ export default function LearningApp() {
                       compétence se construit en pratiquant, puis en la
                       retrouvant de mémoire au fil du temps.
                     </p>
-                    <div className="mastery-list">
-                      {baCourse.lessons.map((l, i) => {
-                        const mark = (state.reading ?? []).find(
-                          (r) => r.lessonId === l.id,
-                        );
-                        const practiced = practicedLevels(
-                          practiceResults,
-                          l.id,
-                        );
-                        const reviews = state.reviews.filter(
-                          (r) => r.lessonId === l.id,
-                        );
-                        const recalled = reviews.reduce(
-                          (n, r) => n + r.repetitions,
-                          0,
-                        );
-                        return (
-                          <div key={l.id} className="mastery-row">
-                            <strong>
-                              {i + 1}. {l.skill}
-                            </strong>
-                            <span
-                              className={`status-chip ${mark?.finishedAt ? "read" : mark ? "reading" : ""}`}
-                            >
-                              <BookOpen size={12} />
-                              {mark?.finishedAt
-                                ? "Lu"
-                                : mark
-                                  ? "En lecture"
-                                  : "Non lu"}
-                            </span>
-                            <span
-                              className={`status-chip ${practiced ? "practiced" : ""}`}
-                            >
-                              <Target size={12} /> Pratique {practiced}/3
-                            </span>
-                            <span
-                              className={`status-chip ${recalled ? "reviewed" : ""}`}
-                            >
-                              <RotateCcw size={12} />
-                              {recalled
-                                ? `${recalled} rappel${recalled > 1 ? "s" : ""}`
-                                : "Pas encore révisé"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    {builtInCourses.map((bc, ci) => (
+                      <details
+                        key={bc.id}
+                        className="mastery-course"
+                        open={ci === 0}
+                      >
+                        <summary>
+                          {bc.title}
+                          <span>
+                            {
+                              bc.lessons.filter((l) =>
+                                (state.reading ?? []).some(
+                                  (r) => r.lessonId === l.id && r.finishedAt,
+                                ),
+                              ).length
+                            }
+                            /{bc.lessons.length} lus
+                          </span>
+                        </summary>
+                        <div className="mastery-list">
+                          {bc.lessons.map((l, i) => {
+                            const mark = (state.reading ?? []).find(
+                              (r) => r.lessonId === l.id,
+                            );
+                            const practiced = practicedLevels(
+                              practiceResults,
+                              l.id,
+                            );
+                            const reviews = state.reviews.filter(
+                              (r) => r.lessonId === l.id,
+                            );
+                            const recalled = reviews.reduce(
+                              (n, r) => n + r.repetitions,
+                              0,
+                            );
+                            return (
+                              <div key={l.id} className="mastery-row">
+                                <strong>
+                                  {i + 1}. {l.skill}
+                                </strong>
+                                <span
+                                  className={`status-chip ${mark?.finishedAt ? "read" : mark ? "reading" : ""}`}
+                                >
+                                  <BookOpen size={12} />
+                                  {mark?.finishedAt
+                                    ? "Lu"
+                                    : mark
+                                      ? "En lecture"
+                                      : "Non lu"}
+                                </span>
+                                <span
+                                  className={`status-chip ${practiced ? "practiced" : ""}`}
+                                >
+                                  <Target size={12} /> Pratique {practiced}/3
+                                </span>
+                                <span
+                                  className={`status-chip ${recalled ? "reviewed" : ""}`}
+                                >
+                                  <RotateCcw size={12} />
+                                  {recalled
+                                    ? `${recalled} rappel${recalled > 1 ? "s" : ""}`
+                                    : "Pas encore révisé"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    ))}
                   </section>
                   <div className="progress-cards">
                     <Stat
@@ -1319,48 +1341,53 @@ export default function LearningApp() {
                     <h2>Les compétences en construction.</h2>
                   </div>
                   <div className="skills-grid">
-                    {baCourse.lessons.map((l) => {
-                      const attempts = state.completions.filter(
-                        (c) => c.lessonId === l.id,
-                      );
-                      const reviews = state.reviews.filter(
-                        (r) => r.lessonId === l.id && r.repetitions > 0,
-                      );
-                      return (
-                        <div key={l.id} className="skill-row">
-                          <span
-                            className={
-                              attempts.length
-                                ? "skill-icon active"
-                                : "skill-icon"
-                            }
-                          >
-                            {attempts.length ? (
-                              <Check size={17} />
-                            ) : (
-                              <Sprout size={17} />
-                            )}
-                          </span>
-                          <div>
-                            <strong>{l.skill}</strong>
-                            <span>
-                              {reviews.length
-                                ? "Revu de mémoire"
-                                : attempts.length
-                                  ? "Exploré · à consolider"
-                                  : "À découvrir"}
+                    {builtInCourses
+                      .flatMap((bc) => bc.lessons.map((l) => ({ l, bc })))
+                      .map(({ l, bc }) => {
+                        const attempts = state.completions.filter(
+                          (c) => c.lessonId === l.id,
+                        );
+                        const reviews = state.reviews.filter(
+                          (r) => r.lessonId === l.id && r.repetitions > 0,
+                        );
+                        return (
+                          <div key={l.id} className="skill-row">
+                            <span
+                              className={
+                                attempts.length
+                                  ? "skill-icon active"
+                                  : "skill-icon"
+                              }
+                            >
+                              {attempts.length ? (
+                                <Check size={17} />
+                              ) : (
+                                <Sprout size={17} />
+                              )}
                             </span>
+                            <div>
+                              <strong>{l.skill}</strong>
+                              <span>
+                                {reviews.length
+                                  ? "Revu de mémoire"
+                                  : attempts.length
+                                    ? "Exploré · à consolider"
+                                    : "À découvrir"}
+                              </span>
+                            </div>
+                            <button
+                              className="icon-button"
+                              aria-label={`Travailler : ${l.skill}`}
+                              onClick={() => {
+                                setCourseId(bc.id);
+                                start(l, bc);
+                              }}
+                            >
+                              <ArrowUpRight size={18} />
+                            </button>
                           </div>
-                          <button
-                            className="icon-button"
-                            aria-label={`Travailler : ${l.skill}`}
-                            onClick={() => start(l, baCourse)}
-                          >
-                            <ArrowUpRight size={18} />
-                          </button>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                   <p className="progress-disclaimer">
                     Une étape terminée ne signifie pas encore une compétence
