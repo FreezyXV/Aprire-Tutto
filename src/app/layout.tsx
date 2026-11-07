@@ -1,10 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource/dm-sans/400.css";
-import "@fontsource/dm-sans/500.css";
-import "@fontsource/dm-sans/600.css";
-import "@fontsource/dm-sans/700.css";
-import "@fontsource/lora/400.css";
-import "@fontsource/lora/400-italic.css";
+import "@fontsource-variable/bricolage-grotesque/standard.css";
+import "@fontsource/atkinson-hyperlegible-next/400.css";
+import "@fontsource/atkinson-hyperlegible-next/500.css";
+import "@fontsource/atkinson-hyperlegible-next/700.css";
 import "./globals.css";
 import { ServiceWorker } from "@/components/service-worker";
 export const metadata: Metadata = {
@@ -23,7 +21,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f7f7f1",
+  themeColor: "#f5f6f8",
 };
 export default function RootLayout({
   children,

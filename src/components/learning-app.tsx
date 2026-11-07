@@ -374,9 +374,15 @@ export default function LearningApp() {
                 <>
                   <div className="page-heading">
                     <div>
-                      <div className="eyebrow">
-                        <span className="tiny-sun">✳</span> LA CURIOSITÉ SE
-                        CULTIVE
+                      <div
+                        className="eyebrow notebook-date"
+                        suppressHydrationWarning
+                      >
+                        {new Date().toLocaleDateString("fr-FR", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                        })}
                       </div>
                       <h1>
                         Ouvre un nouvel <em>horizon.</em>
@@ -433,8 +439,8 @@ export default function LearningApp() {
                         <div className="focus-label">
                           <span className="live-dot" />{" "}
                           {state.session
-                            ? "TA SÉANCE T’ATTEND"
-                            : "LE PETIT PAS DU JOUR"}
+                            ? "Ta séance t’attend"
+                            : "Le petit pas du jour"}
                         </div>
                         <Pill className="course-pill">
                           {state.session ? sessionCourse?.title : course.title}{" "}
@@ -547,7 +553,7 @@ export default function LearningApp() {
                   <div className="section-heading">
                     <div>
                       <span className="eyebrow">
-                        TES TERRAINS D’EXPLORATION
+                        Tes terrains d’exploration
                       </span>
                       <h2>De la curiosité aux compétences.</h2>
                     </div>
@@ -612,7 +618,7 @@ export default function LearningApp() {
                   </section>
                   <div className="home-footer">
                     <span>
-                      COMPRENDRE <i /> PRATIQUER <i /> RETENIR
+                      Comprendre <i /> pratiquer <i /> retenir
                     </span>
                     <span>Le plaisir d’apprendre, tout simplement.</span>
                   </div>
@@ -621,7 +627,7 @@ export default function LearningApp() {
               {view === "subjects" && (
                 <>
                   <PageTitle
-                    eyebrow="UNE CURIOSITÉ, MILLE POSSIBILITÉS"
+                    eyebrow="Une curiosité, mille possibilités"
                     title={
                       <>
                         Mes <em>sujets.</em>
@@ -812,7 +818,7 @@ export default function LearningApp() {
               {view === "reviews" && (
                 <>
                   <PageTitle
-                    eyebrow="CE QUI RESTE, C’EST CE QUI REVIENT"
+                    eyebrow="Ce qui reste, c’est ce qui revient"
                     title={
                       <>
                         Ancre tes <em>connaissances.</em>
@@ -850,7 +856,7 @@ export default function LearningApp() {
                       </button>
                       <div className="flashcard">
                         <span className="eyebrow">
-                          {showBack ? "LA RÉPONSE" : "ESSAIE DE TE SOUVENIR"}
+                          {showBack ? "La réponse" : "Essaie de te souvenir"}
                         </span>
                         <h2>{activeReview.front}</h2>
                         {showBack ? (
@@ -988,7 +994,7 @@ export default function LearningApp() {
               {view === "progress" && (
                 <>
                   <PageTitle
-                    eyebrow="LE CHEMIN QUE TU CONSTRUIS"
+                    eyebrow="Le chemin que tu construis"
                     title={
                       <>
                         Ta progression, <em>à toi.</em>
@@ -1140,7 +1146,7 @@ export default function LearningApp() {
               {view === "settings" && (
                 <>
                   <PageTitle
-                    eyebrow="UN ESPACE QUI TE RESSEMBLE"
+                    eyebrow="Un espace qui te ressemble"
                     title={
                       <>
                         Tes <em>réglages.</em>
@@ -1464,9 +1470,9 @@ function CourseCard({
           <Compass size={48} strokeWidth={1} />
         </div>
         <span className="subject-art-label">
-          COMPRENDRE
+          Comprendre
           <br />
-          POUR AGIR.
+          pour agir.
         </span>
         <span className="subject-art-arrow">
           <ArrowUpRight size={22} />

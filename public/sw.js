@@ -1,5 +1,5 @@
 // Aprire Tutto — offline shell. API calls are never cached.
-const VERSION = "aprire-v1";
+const VERSION = "aprire-v2";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
