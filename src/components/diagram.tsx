@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { ArrowDown, ArrowRight, CornerUpLeft } from "lucide-react";
 import type { Diagram as D } from "@/lib/types";
-import { diagramToText } from "@/lib/diagram-text";
+import { diagramToText, forkModeLabels } from "@/lib/diagram-text";
 
 /**
  * Data-driven diagrams in HTML/CSS: they reflow to the iPhone width
@@ -18,8 +18,8 @@ export function Diagram({ diagram }: { diagram: D }) {
       <details className="diagram-text">
         <summary>Lire le schéma en texte</summary>
         <ul>
-          {diagramToText(diagram).map((l) => (
-            <li key={l}>{l}</li>
+          {diagramToText(diagram).map((l, i) => (
+            <li key={i}>{l}</li>
           ))}
         </ul>
       </details>
@@ -77,7 +77,9 @@ function Body({ d }: { d: D }) {
       );
     case "table":
       return (
-        <table className="diagram-table">
+        <table
+          className={d.compact ? "diagram-table compact" : "diagram-table"}
+        >
           <thead>
             <tr>
               {d.columns.map((c) => (
@@ -153,6 +155,81 @@ function Body({ d }: { d: D }) {
             <span>← {d.backward[1]}</span>
           </div>
           <Box b={d.right} />
+        </div>
+      );
+    case "fork":
+      return (
+        <div className="fork">
+          <div className="fork-node">
+            {d.mode !== "alternatives" && (
+              <span className="fork-gateway">
+                <b>{d.mode === "parallel" ? "+" : "×"}</b>
+              </span>
+            )}
+            <div>
+              <small>{forkModeLabels[d.mode]}</small>
+              <strong>{d.entry}</strong>
+            </div>
+          </div>
+          <ol
+            className={d.join ? "fork-routes joins" : "fork-routes"}
+            style={{ ["--routes" as string]: d.routes.length }}
+          >
+            {d.routes.map(({ label, action }, i) => (
+              <li key={i}>
+                <div className="fork-route">
+                  <strong>{label}</strong>
+                  <span>{action}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {d.join && (
+            <>
+              <div className="fork-node">
+                <span className="fork-gateway">
+                  <b>+</b>
+                </span>
+                <strong>{d.join.label}</strong>
+              </div>
+              <ArrowDown className="fork-next-arrow" size={18} />
+              <div className="fork-node fork-result">{d.join.next}</div>
+            </>
+          )}
+        </div>
+      );
+    case "relationship":
+      return (
+        <ul className="relationship-links">
+          {d.links.map(({ label, entities: [left, right] }, i) => (
+            <li key={i} className="relationship">
+              <div className="relationship-entity">
+                <strong>{left.name}</strong>
+                <span>{left.key}</span>
+              </div>
+              <div className="relationship-edge">
+                <span>{left.count}</span>
+                <span>{right.count}</span>
+              </div>
+              <div className="relationship-entity">
+                <strong>{right.name}</strong>
+                <span>{right.key}</span>
+              </div>
+              <p>{label}</p>
+            </li>
+          ))}
+        </ul>
+      );
+    case "triangle":
+      return (
+        <div className="diagram-triangle-map">
+          {d.poles.map(({ label, note }, i) => (
+            <div key={i} className="triangle-pole">
+              <strong>{label}</strong>
+              <span>{note}</span>
+            </div>
+          ))}
+          <p>{d.center}</p>
         </div>
       );
   }

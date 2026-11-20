@@ -1058,25 +1058,26 @@ const lessons: Lesson[] = [
             "Après la mise en production, un test de fumée vérifie que l’essentiel répond, puis on suit les premiers jours de près et on mesure la valeur avec les indicateurs du cadrage.",
           ],
           diagram: {
-            kind: "flow",
-            title: "De la recette à la valeur",
-            steps: [
-              { label: "Bilan de recette", tone: "apricot" },
+            kind: "fork",
+            title: "Le bilan de recette éclaire la décision de lancement",
+            mode: "exclusive",
+            entry: "Le métier décide après le bilan de recette",
+            routes: [
               {
-                label: "Go / no-go",
-                note: "Décision du métier",
-                tone: "marker",
+                label: "Go",
+                action: "Déployer puis vérifier les parcours critiques",
               },
-              { label: "Mise en production" },
-              { label: "Test de fumée", note: "L’essentiel répond ?" },
               {
-                label: "Mesure de la valeur",
-                note: "Indicateurs du cadrage",
-                tone: "sky",
+                label: "Go conditionnel",
+                action: "Vérifier les conditions convenues avant de déployer",
+              },
+              {
+                label: "No-go",
+                action: "Reporter, corriger puis rejouer les tests concernés",
               },
             ],
             caption:
-              "La recette ne s’arrête pas à la mise en production : la valeur se vérifie après.",
+              "Dans les deux scénarios de lancement, mesure ensuite la valeur avec les indicateurs fixés au cadrage.",
           },
         },
       ],

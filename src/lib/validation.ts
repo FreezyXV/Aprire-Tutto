@@ -29,6 +29,12 @@ const box = z.object({
   title: short,
   lines: z.array(short).max(5),
 });
+const entity = z.object({
+  name: short,
+  key: short,
+  count: z.enum(["1", "0..1", "0..N", "1..N"]),
+});
+const pole = z.object({ label: short, note: short });
 export const diagramSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("flow"),
@@ -59,6 +65,7 @@ export const diagramSchema = z.discriminatedUnion("kind", [
     title: short,
     columns: z.array(short).min(2).max(4),
     rows: z.array(z.array(short).min(2).max(4)).min(1).max(8),
+    compact: z.boolean().optional(),
     caption: text,
   }),
   z.object({
@@ -85,6 +92,36 @@ export const diagramSchema = z.discriminatedUnion("kind", [
     right: box,
     forward: z.tuple([short, short]),
     backward: z.tuple([short, short]),
+    caption: text,
+  }),
+  z
+    .object({
+      kind: z.literal("fork"),
+      title: short,
+      mode: z.enum(["alternatives", "exclusive", "parallel"]),
+      entry: short,
+      routes: z
+        .array(z.object({ label: short, action: short }))
+        .min(2)
+        .max(3),
+      join: z.object({ label: short, next: short }).optional(),
+      caption: text,
+    })
+    .refine((d) => (d.mode === "parallel") === Boolean(d.join)),
+  z.object({
+    kind: z.literal("relationship"),
+    title: short,
+    links: z
+      .array(z.object({ label: short, entities: z.tuple([entity, entity]) }))
+      .min(1)
+      .max(4),
+    caption: text,
+  }),
+  z.object({
+    kind: z.literal("triangle"),
+    title: short,
+    poles: z.tuple([pole, pole, pole]),
+    center: short,
     caption: text,
   }),
 ]);

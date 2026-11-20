@@ -47,6 +47,8 @@ export type Diagram =
       title: string;
       columns: string[];
       rows: string[][];
+      /** Keep short data cells aligned across rows on narrow screens. */
+      compact?: boolean;
       caption: string;
     }
   | {
@@ -64,6 +66,39 @@ export type Diagram =
       right: { title: string; lines: string[] };
       forward: [string, string];
       backward: [string, string];
+      caption: string;
+    }
+  | {
+      kind: "fork";
+      title: string;
+      mode: "alternatives" | "exclusive" | "parallel";
+      entry: string;
+      routes: { label: string; action: string }[];
+      join?: { label: string; next: string };
+      caption: string;
+    }
+  | {
+      kind: "relationship";
+      title: string;
+      links: {
+        label: string;
+        /** The count on each side applies to one instance on the opposite side. */
+        entities: [
+          { name: string; key: string; count: "1" | "0..1" | "0..N" | "1..N" },
+          { name: string; key: string; count: "1" | "0..1" | "0..N" | "1..N" },
+        ];
+      }[];
+      caption: string;
+    }
+  | {
+      kind: "triangle";
+      title: string;
+      poles: [
+        { label: string; note: string },
+        { label: string; note: string },
+        { label: string; note: string },
+      ];
+      center: string;
       caption: string;
     };
 export type Chapter = {

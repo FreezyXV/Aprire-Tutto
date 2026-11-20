@@ -149,7 +149,7 @@ const lessons: Lesson[] = [
         {
           heading: "Trois passerelles, trois logiques",
           paragraphs: [
-            "Une passerelle n’est pas une tâche : elle ne fait rien, elle aiguille. L’exclusive pose une question à réponse unique (« Adresse valide ? »). La parallèle ne pose aucune question : tous les chemins partent en même temps. L’inclusive pose plusieurs questions indépendantes et suit chaque chemin dont la condition est vraie.",
+            "Une passerelle règle la circulation du flux. À la divergence, l’exclusive choisit un seul chemin (« Adresse valide ? »). La parallèle ouvre tous les chemins, sans condition et sans imposer d’ordre entre eux. L’inclusive suit chaque chemin dont la condition est vraie.",
             "Nomme toujours une passerelle exclusive par une question et ses flux sortants par les réponses : le schéma se lit alors comme une phrase.",
           ],
           diagram: {
@@ -183,35 +183,26 @@ const lessons: Lesson[] = [
         {
           heading: "Diviser puis rejoindre",
           paragraphs: [
-            "Les chemins ouverts doivent se rejoindre proprement. Une passerelle parallèle de jonction attend que tous les chemins soient terminés ; une exclusive de jonction laisse passer le premier qui arrive. Mélanger les types crée des doublons (la suite s’exécute deux fois) ou des blocages (on attend un chemin qui n’a jamais été pris).",
+            "Une jonction parallèle attend un passage sur chaque branche entrante. Une jonction exclusive laisse passer chaque arrivée, sans attendre les autres. Si tu rejoins deux branches parallèles avec une jonction exclusive, la suite peut s’exécuter deux fois.",
           ],
           diagram: {
-            kind: "flow",
-            title: "Une commande, deux décisions",
-            steps: [
-              { label: "Commande payée" },
-              {
-                label: "Adresse valide ?",
-                note: "Exclusive : oui → suite ; non → contacter le client",
-                tone: "marker",
-              },
-              {
-                label: "Division parallèle",
-                note: "Préparer le colis + confirmer au client",
-                tone: "apricot",
-              },
-              {
-                label: "Jonction parallèle",
-                note: "Attend les deux",
-                tone: "apricot",
-              },
-              { label: "Expédier", tone: "sky" },
+            kind: "fork",
+            title: "BPMN : ouvrir deux branches, puis les réunir",
+            mode: "parallel",
+            entry: "Commande validée",
+            routes: [
+              { label: "Entrepôt", action: "Préparer le colis" },
+              { label: "Service client", action: "Confirmer la commande" },
             ],
+            join: {
+              label: "Attendre les deux branches",
+              next: "Expédier le colis",
+            },
             caption:
-              "La division et la jonction parallèles encadrent les activités simultanées.",
+              "La préparation et la confirmation peuvent finir dans n’importe quel ordre. L’expédition commence quand les deux sont terminées.",
           },
           keyPoint:
-            "On rejoint avec le même type de passerelle que celui qui a divisé.",
+            "Dans ce modèle, chaque branche est ouverte. La jonction parallèle les synchronise avant l’expédition.",
         },
       ],
       workedExample: {

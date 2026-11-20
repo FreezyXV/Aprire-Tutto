@@ -30,32 +30,20 @@ export const chaptersPart1: Record<string, Chapter> = {
           "Ce découpage a une conséquence pratique : un même besoin accepte plusieurs solutions, qu’il faudra comparer sur leur coût, leur délai et leur efficacité. Si tu figes la solution trop tôt, tu supprimes cette comparaison.",
         ],
         diagram: {
-          kind: "flow",
-          title: "Du constat au choix d’une solution",
-          steps: [
+          kind: "fork",
+          title: "Un même besoin, plusieurs solutions",
+          mode: "alternatives",
+          entry: "Connaître l’état de sa commande sans appeler",
+          routes: [
             {
-              label: "Problème observé",
-              note: "Un fait, idéalement chiffré",
-              tone: "blush",
+              label: "Page de suivi",
+              action: "Consulter le statut à la demande",
             },
-            {
-              label: "Cause",
-              note: "Pourquoi ce fait se produit",
-              tone: "neutral",
-            },
-            {
-              label: "Besoin",
-              note: "Le résultat attendu, et pour qui",
-              tone: "apricot",
-            },
-            {
-              label: "Solutions possibles",
-              note: "Plusieurs options à comparer",
-              tone: "sky",
-            },
+            { label: "SMS", action: "Recevoir les changements importants" },
+            { label: "E-mail", action: "Garder une trace des mises à jour" },
           ],
           caption:
-            "On ne parle de solution qu’en dernier : chaque étape réduit le risque de construire la mauvaise chose.",
+            "Compare chaque option selon les usages des clients, son coût et sa capacité à réduire les appels.",
         },
       },
       {
@@ -483,31 +471,28 @@ export const chaptersPart1: Record<string, Chapter> = {
         heading: "Trois orientations, un seul métier",
         paragraphs: [
           "Dans la pratique, chaque poste de BA penche vers un centre de gravité. L’orientation métier (souvent appelée AMOA) se concentre sur les processus, les règles de gestion et la conduite du changement. L’orientation technico-fonctionnelle travaille les interfaces, les données et le paramétrage. L’orientation produit ou projet gère le backlog, la priorisation et la valeur livrée.",
-          "Personne ne maîtrise parfaitement les trois. Savoir dire où tu te situes, et où tu veux aller, est plus crédible que de prétendre tout couvrir.",
+          "Un même poste peut associer plusieurs orientations. Pour lire une offre, repère les livrables et les décisions qui occuperont l’essentiel de la mission.",
         ],
         diagram: {
-          kind: "table",
+          kind: "triangle",
           title: "Les trois orientations du BA",
-          columns: ["Orientation", "Centre de gravité", "Intitulés fréquents"],
-          rows: [
-            [
-              "Métier",
-              "Processus, règles de gestion, changement",
-              "AMOA, analyste métier, consultant fonctionnel",
-            ],
-            [
-              "Technico-fonctionnelle",
-              "Interfaces, données, paramétrage",
-              "BA IT, analyste technico-fonctionnel",
-            ],
-            [
-              "Produit / projet",
-              "Backlog, priorisation, valeur livrée",
-              "Product Owner, Proxy PO, BA agile",
-            ],
+          poles: [
+            {
+              label: "Métier / AMOA",
+              note: "Processus, règles de gestion, changement",
+            },
+            {
+              label: "Technico-fonctionnel",
+              note: "Interfaces, données, paramétrage",
+            },
+            {
+              label: "Produit / projet",
+              note: "Backlog, priorités, valeur livrée",
+            },
           ],
+          center: "Une mission peut combiner les trois pôles.",
           caption:
-            "Les activités décrites dans une offre comptent plus que son titre.",
+            "Une mission qui associe ateliers métier et spécification d’API se situe entre les pôles métier et technico-fonctionnel.",
         },
       },
       {
