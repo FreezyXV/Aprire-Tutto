@@ -1,5 +1,18 @@
 import type { Diagram } from "@/lib/types";
 
+export const forkModeLabels = {
+  alternatives: "Options à comparer",
+  exclusive: "Un seul chemin",
+  parallel: "Tous les chemins",
+};
+
+const countLabels = {
+  "1": "exactement une occurrence",
+  "0..1": "zéro ou une occurrence",
+  "0..N": "zéro, une ou plusieurs occurrences",
+  "1..N": "au moins une occurrence",
+};
+
 /** Plain-text equivalent of a diagram, for screen readers and "Lire en texte". */
 export function diagramToText(d: Diagram): string[] {
   switch (d.kind) {
@@ -49,5 +62,19 @@ export function diagramToText(d: Diagram): string[] {
         `${d.center.title} (${d.center.lines.join(", ")}) transmet « ${d.forward[1]} » à ${d.right.title} (${d.right.lines.join(", ")}).`,
         `En retour : « ${d.backward[1]} » de ${d.right.title} vers ${d.center.title}, puis « ${d.backward[0]} » vers ${d.left.title}.`,
       ];
+    case "fork":
+      return [
+        `${d.entry} — ${forkModeLabels[d.mode]}.`,
+        ...d.routes.map((route) => `${route.label} : ${route.action}.`),
+        ...(d.join ? [`${d.join.label}, puis ${d.join.next}.`] : []),
+      ];
+    case "relationship":
+      return d.links.flatMap(({ label, entities: [left, right] }) => [
+        `${label} : ${left.name} (${left.key}) et ${right.name} (${right.key}).`,
+        `Pour chaque « ${left.name} », ${countLabels[right.count]} de « ${right.name} ».`,
+        `Pour chaque « ${right.name} », ${countLabels[left.count]} de « ${left.name} ».`,
+      ]);
+    case "triangle":
+      return [...d.poles.map((p) => `${p.label} : ${p.note}.`), d.center];
   }
 }

@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { baCourse } from "../src/data/ba";
-import { chapterSchema, courseSchema } from "../src/lib/validation";
+import {
+  chapterSchema,
+  courseSchema,
+  diagramSchema,
+} from "../src/lib/validation";
 import { diagramToText } from "../src/lib/diagram-text";
 import type { Diagram } from "../src/lib/types";
 
@@ -59,6 +63,50 @@ test("Chapters cover each lesson with examples, pitfalls and glossary", () => {
     assert.ok(c.pitfalls.length >= 2, `${l.id}: pièges`);
     assert.ok(c.glossary.length >= 4, `${l.id}: glossaire`);
   }
+});
+
+test("The data model describes both directions without reversing cardinalities", () => {
+  const diagram = diagrams().find(({ d }) => d.kind === "relationship")?.d;
+  assert.ok(diagram);
+  const text = diagramToText(diagram);
+  assert.ok(
+    text.includes(
+      "Pour chaque « Client », zéro, une ou plusieurs occurrences de « Commande ».",
+    ),
+  );
+  assert.ok(
+    text.includes(
+      "Pour chaque « Commande », exactement une occurrence de « Client ».",
+    ),
+  );
+  assert.ok(
+    text.includes(
+      "Pour chaque « Commande », zéro ou une occurrence de « Livraison ».",
+    ),
+  );
+});
+
+test("Parallel diagrams require a join and explain it after the branches", () => {
+  const fork = {
+    kind: "fork",
+    title: "Traiter une commande",
+    mode: "parallel",
+    entry: "Commande validée",
+    routes: [
+      { label: "Entrepôt", action: "Préparer le colis" },
+      { label: "Service client", action: "Confirmer la commande" },
+    ],
+    caption: "L’expédition attend les deux branches.",
+  } as const;
+  assert.equal(diagramSchema.safeParse(fork).success, false);
+  const joined = diagramSchema.parse({
+    ...fork,
+    join: { label: "Attendre les deux branches", next: "expédier le colis" },
+  });
+  assert.match(
+    diagramToText(joined).at(-1)!,
+    /Attendre les deux branches, puis expédier/,
+  );
 });
 
 test("Arbitration only sends doubtful, changed answers to the AI", async () => {

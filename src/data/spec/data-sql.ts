@@ -468,11 +468,24 @@ const lessons: Lesson[] = [
         {
           heading: "Le piège de la multiplication",
           paragraphs: [
-            "Entre client et commande, la relation est 1-N : un client a zéro ou plusieurs commandes. Après la jointure, il y a une ligne par commande ; un client fidèle apparaît dix fois. Compter les lignes revient alors à compter des commandes, pas des clients.",
-            "Pour compter des entités après une jointure, utilise COUNT(DISTINCT id_client). Pour sommer un montant porté par la table du côté « 1 », méfie-toi : il serait additionné autant de fois qu’il y a de lignes.",
+            "Un client peut passer plusieurs commandes. Pour Lina, qui en a deux, la jointure renvoie deux lignes. Avec un LEFT JOIN depuis la table client, Noé, qui n’a passé aucune commande, reste présent avec NULL dans les colonnes de commande.",
+            "Pour compter les clients dans le résultat, utilise COUNT(DISTINCT c.id_client). Pour compter les commandes, utilise COUNT(cm.id_commande) : COUNT(*) compterait aussi la ligne de Noé.",
           ],
+          diagram: {
+            kind: "table",
+            title: "LEFT JOIN : deux clients, trois lignes",
+            compact: true,
+            columns: ["Ligne", "Client", "Commande"],
+            rows: [
+              ["1", "Lina", "C101"],
+              ["2", "Lina", "C102"],
+              ["3", "Noé", "NULL"],
+            ],
+            caption:
+              "Sur ce résultat : COUNT(*) = 3, COUNT(cm.id_commande) = 2 et COUNT(DISTINCT c.id_client) = 2.",
+          },
           keyPoint:
-            "Après une jointure 1-N, chaque ligne est une commande, plus un client.",
+            "Avant de compter, détermine ce que représente une ligne du résultat.",
         },
       ],
       workedExample: {

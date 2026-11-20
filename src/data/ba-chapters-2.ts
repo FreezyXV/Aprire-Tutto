@@ -50,46 +50,19 @@ export const chaptersPart2: Record<string, Chapter> = {
         heading: "Lire et écrire du BPMN simple",
         paragraphs: [
           "BPMN est la notation standard pour modéliser les processus métier. Pour démarrer, quelques symboles suffisent : l’événement de début (cercle fin), la tâche (rectangle arrondi), la passerelle exclusive (losange avec un X, un seul chemin selon une condition), l’événement de fin (cercle épais), et les couloirs (une bande par acteur).",
-          "Nomme les tâches avec un verbe d’action (« Contrôler le produit », pas « Contrôle ») et les passerelles avec une question (« Produit conforme ? »). Un bon schéma se lit à voix haute comme une histoire.",
+          "Nomme les tâches avec un verbe d’action (« Contrôler le produit », pas « Contrôle »). Pour une passerelle exclusive, formule une question (« Produit conforme ? ») puis indique la condition près de chaque flèche.",
         ],
         diagram: {
-          kind: "table",
-          title: "Les symboles BPMN essentiels",
-          columns: ["Symbole", "Forme", "Sens"],
-          rows: [
-            [
-              "Événement de début",
-              "Cercle à trait fin",
-              "Déclenche le processus",
-            ],
-            [
-              "Tâche",
-              "Rectangle arrondi",
-              "Une action réalisée par un acteur ou un système",
-            ],
-            [
-              "Passerelle exclusive",
-              "Losange avec un X",
-              "Un seul chemin parmi plusieurs, selon une condition",
-            ],
-            [
-              "Passerelle parallèle",
-              "Losange avec un +",
-              "Tous les chemins en même temps",
-            ],
-            [
-              "Événement de fin",
-              "Cercle à trait épais",
-              "Termine le processus",
-            ],
-            [
-              "Couloir",
-              "Bande horizontale",
-              "Un acteur responsable des tâches qu’il contient",
-            ],
+          kind: "fork",
+          title: "Contrôle d’un retour : la passerelle exclusive",
+          mode: "exclusive",
+          entry: "Produit conforme aux conditions de retour ?",
+          routes: [
+            { label: "Oui", action: "Valider le remboursement" },
+            { label: "Non", action: "Notifier le refus motivé" },
           ],
           caption:
-            "Six symboles couvrent l’essentiel des processus que tu modéliseras au début.",
+            "Après le contrôle, le retour suit une seule branche. Le losange marqué d’un × repère la décision.",
         },
       },
       {
@@ -487,22 +460,38 @@ export const chaptersPart2: Record<string, Chapter> = {
           "Une clé primaire identifie chaque ligne de façon unique ; une clé étrangère référence une autre table et matérialise le lien. Savoir lire cela suffit pour dialoguer avec une équipe data et écrire des requêtes SQL simples.",
         ],
         diagram: {
-          kind: "flow",
-          title: "Client, commande, transporteur",
-          steps: [
-            { label: "Client", note: "id_client (clé primaire)" },
+          kind: "relationship",
+          title: "Combien de commandes ou de livraisons ?",
+          links: [
             {
-              label: "Commande",
-              note: "id_commande, id_client (clé étrangère), créneau promis",
-              tone: "apricot",
+              label: "Un client passe des commandes",
+              entities: [
+                { name: "Client", key: "id_client · clé primaire", count: "1" },
+                {
+                  name: "Commande",
+                  key: "id_client · clé étrangère",
+                  count: "0..N",
+                },
+              ],
             },
             {
-              label: "Livraison",
-              note: "id_commande, transporteur, heure réelle",
+              label: "Une commande peut donner lieu à une livraison",
+              entities: [
+                {
+                  name: "Commande",
+                  key: "id_commande · clé primaire",
+                  count: "1",
+                },
+                {
+                  name: "Livraison",
+                  key: "id_commande · clé étrangère unique",
+                  count: "0..1",
+                },
+              ],
             },
           ],
           caption:
-            "Un client a 0 à N commandes ; une commande a 1 seul client et 0 ou 1 livraison.",
+            "Pars d’une occurrence et lis le nombre à l’autre bout. Dans ce modèle simplifié, une commande a un seul client et au plus une livraison.",
         },
       },
     ],

@@ -139,6 +139,10 @@ export function LearningSession({
 }) {
   const sequence = stages(draft.minutes);
   const step = sequence[draft.step];
+  const overviewDiagram =
+    step === "learn"
+      ? lesson.chapter?.sections.find((section) => section.diagram)?.diagram
+      : undefined;
   const isQuestion = ["recall", "check", "transfer"].includes(step);
   const question =
     step === "recall"
@@ -488,6 +492,7 @@ export function LearningSession({
                 <p key={p}>{p}</p>
               ))}
             </div>
+            {overviewDiagram && <Diagram diagram={overviewDiagram} />}
             <div className="worked-example">
               <span className="eyebrow">Un exemple concret</span>
               <p>{lesson.example.context}</p>
@@ -499,20 +504,6 @@ export function LearningSession({
               <Lightbulb size={23} />
               <p>{lesson.takeaway}</p>
             </div>
-            {(() => {
-              const d = lesson.chapter?.sections.find(
-                (x) => x.diagram,
-              )?.diagram;
-              return d ? (
-                <>
-                  <Diagram diagram={d} />
-                  <p className="muted small-text">
-                    Le chapitre complet, avec ses exemples et ses schémas,
-                    t’attend dans l’espace Cours.
-                  </p>
-                </>
-              ) : null;
-            })()}
             <details className="sources">
               <summary>Explorer les sources de référence</summary>
               {course.sources.map((s) => (
